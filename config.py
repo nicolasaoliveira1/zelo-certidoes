@@ -12,6 +12,16 @@ def _env_bool(name, default=False):
         return default
     return value.strip().lower() in {'1', 'true', 'yes', 'on', 'sim'}
 
+
+def _env_int(name, default=0):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        return int(str(value).strip())
+    except ValueError:
+        return default
+
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY')
     if not SECRET_KEY:
@@ -31,7 +41,7 @@ class Config:
     RS_CERT_AUTOSELECT_ENABLED = _env_bool('RS_CERT_AUTOSELECT_ENABLED', False)
     RS_CERT_AUTOSELECT_PATTERN = os.environ.get('RS_CERT_AUTOSELECT_PATTERN') or \
         'https://www.sefaz.rs.gov.br'
-    RS_CERT_AUTOSELECT_POLICY_INDEX = os.environ.get('RS_CERT_AUTOSELECT_POLICY_INDEX') or '1'
+    RS_CERT_AUTOSELECT_POLICY_INDEX = _env_int('RS_CERT_AUTOSELECT_POLICY_INDEX', 1)
     RS_CERT_AUTOSELECT_ISSUER_CN = os.environ.get('RS_CERT_AUTOSELECT_ISSUER_CN') or ''
     RS_CERT_AUTOSELECT_SUBJECT_CN = os.environ.get('RS_CERT_AUTOSELECT_SUBJECT_CN') or ''
 
@@ -39,8 +49,8 @@ class Config:
     RS_ALTCHA_MANUAL_FALLBACK = _env_bool('RS_ALTCHA_MANUAL_FALLBACK', True)
 
     CAPTCHA_2_API_KEY = os.environ.get('CAPTCHA_2_API_KEY') or ''
-    CAPTCHA_2_DEFAULT_TIMEOUT = int(os.environ.get('CAPTCHA_2_DEFAULT_TIMEOUT') or '180')
-    CAPTCHA_2_POLLING_INTERVAL = int(os.environ.get('CAPTCHA_2_POLLING_INTERVAL') or '10')
+    CAPTCHA_2_DEFAULT_TIMEOUT = _env_int('CAPTCHA_2_DEFAULT_TIMEOUT', 180)
+    CAPTCHA_2_POLLING_INTERVAL = _env_int('CAPTCHA_2_POLLING_INTERVAL', 10)
     CAPTCHA_2_SERVER = os.environ.get('CAPTCHA_2_SERVER') or '2captcha.com'
         
     SQLALCHEMY_TRACK_MODIFICATIONS = False
