@@ -195,6 +195,8 @@ O caminho base é definido no arquivo de gerenciamento de arquivos. Ajuste confo
   - caminho de rede,
   - profile do Chrome,
   - configuração do solver.
+- As respostas HTTP incluem o header `X-Request-Id` para correlacionar logs e requisições.
+- O check de caminho de rede também informa leitura e escrita (útil para diagnosticar permissões).
 - Para reduzir ruído local, logs HTTP de estáticos/polling são filtrados e o log padrão fica em nível `WARNING`.
 
 ### Municípios
