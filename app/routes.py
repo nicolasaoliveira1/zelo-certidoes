@@ -66,6 +66,10 @@ def _before_request_observability():
 
 @bp.after_app_request
 def _after_request_observability(response):
+    request_id = CorrelationContext.get_request_id()
+    if request_id:
+        response.headers['X-Request-Id'] = request_id
+
     duration_ms = int((time.time() - getattr(g, 'req_start', time.time())) * 1000)
 
     path = request.path or ''
