@@ -24,7 +24,8 @@
 
                     <div class="col-12">
                         <label for="nome" class="form-label">Nome da Empresa</label>
-                        <input type="text" class="form-control" id="nome" name="nome" required>
+                        <input type="text" class="form-control" id="nome" name="nome" required
+                               maxlength="120" autocomplete="organization">
                     </div>
 
                     <div class="col-12 col-lg-6">
@@ -32,7 +33,8 @@
                         <input type="text" class="form-control" id="cnpj" name="cnpj"
                                placeholder="XX.XXX.XXX/XXXX-XX" required
                                oninput="mascaraCnpj(this)" maxlength="18"
-                               minlength="18" title="Digite um CNPJ válido.">
+                               minlength="18" inputmode="numeric" autocomplete="off"
+                               title="Digite um CNPJ válido.">
                     </div>
 
                     <div class="col-12 col-lg-6">
@@ -71,12 +73,14 @@
 
                     <div class="col-12 col-lg-6">
                         <label for="cidade" class="form-label">Cidade</label>
-                        <input type="text" class="form-control" id="cidade" name="cidade" required>
+                        <input type="text" class="form-control" id="cidade" name="cidade" required
+                               maxlength="50" autocomplete="address-level2">
                     </div>
 
                     <div class="col-12 col-lg-6">
                         <label for="inscricao_mobiliaria" class="form-label">Inscrição Mobiliária (se houver)</label>
-                        <input type="text" class="form-control" id="inscricao_mobiliaria" name="inscricao_mobiliaria">
+                        <input type="text" class="form-control" id="inscricao_mobiliaria" name="inscricao_mobiliaria"
+                               maxlength="6" inputmode="numeric" autocomplete="off">
                     </div>
 
                     <div class="col-12 d-flex justify-content-end gap-2 mt-2">
