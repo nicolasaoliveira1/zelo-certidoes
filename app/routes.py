@@ -1,37 +1,48 @@
-import os
-import json
-import time
-import string
-import random
 import base64
+import json
+import os
+import random
 import re
+import string
+import time
 import unicodedata
-from threading import Thread, Lock
 from datetime import date, datetime, timedelta
+from threading import Lock, Thread
 
 try:
     import winreg
 except ImportError:
     winreg = None
 
-from flask import (Blueprint, flash, jsonify, redirect, render_template,
-                   request, url_for, send_file, current_app, g)
+import pdfplumber
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    g,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    url_for,
+)
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from selenium import webdriver
-from selenium.common.exceptions import (InvalidSessionIdException,
-                                        NoAlertPresentException,
-                                        NoSuchWindowException,
-                                        TimeoutException,
-                                        WebDriverException)
+from selenium.common.exceptions import (
+    InvalidSessionIdException,
+    NoSuchWindowException,
+    TimeoutException,
+    WebDriverException,
+)
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select, WebDriverWait
-from selenium.webdriver.common.keys import Keys
 from sqlalchemy import or_
 from webdriver_manager.chrome import ChromeDriverManager
-import pdfplumber
 
 from app import db, file_manager
 from app.automation import SITES_CERTIDOES, VALIDADES_CERTIDOES
@@ -43,8 +54,10 @@ from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
 from app.services.health import run_health_checks
 from app.services.retry import retry_call
-from app.services.rs_altcha import (clicar_enviar_estadual_rs as _clicar_enviar_estadual_rs,
-                                    resolver_altcha_rs_com_2captcha as _resolver_altcha_rs_com_2captcha)
+from app.services.rs_altcha import (
+    clicar_enviar_estadual_rs as _clicar_enviar_estadual_rs,
+    resolver_altcha_rs_com_2captcha as _resolver_altcha_rs_com_2captcha,
+)
 
 bp = Blueprint('main', __name__)
 
@@ -253,6 +266,19 @@ def _to_bool(value, default=False):
     if isinstance(value, bool):
         return value
     return str(value).strip().lower() in {'1', 'true', 'yes', 'on', 'sim'}
+
+
+def _normalizar_cnpj(cnpj):
+    return ''.join(filter(str.isdigit, cnpj or ''))
+
+
+def _formatar_cnpj(cnpj_limpo):
+    if len(cnpj_limpo) != 14:
+        return None
+    return (
+        f"{cnpj_limpo[0:2]}.{cnpj_limpo[2:5]}.{cnpj_limpo[5:8]}/"
+        f"{cnpj_limpo[8:12]}-{cnpj_limpo[12:14]}"
+    )
 
 
 def _montar_politica_autoselect_rs():
@@ -1860,24 +1886,50 @@ def configuracoes():
 @bp.route('/empresa/adicionar', methods=['POST'])
 def adicionar_empresa():
     # dados formulário
-    nome = request.form.get('nome')
-    cnpj = request.form.get('cnpj')
-    estado = request.form.get('estado')
-    cidade = request.form.get('cidade')
-    inscricao = request.form.get('inscricao_mobiliaria')
-    origem = request.form.get('origem')
+    nome = (request.form.get('nome') or '').strip()
+    cnpj = (request.form.get('cnpj') or '').strip()
+    estado = (request.form.get('estado') or '').strip().upper()
+    cidade = (request.form.get('cidade') or '').strip()
+    inscricao = (request.form.get('inscricao_mobiliaria') or '').strip()
+    origem = (request.form.get('origem') or '').strip()
 
     def _redirect_apos_cadastro():
         if origem == 'nova_empresa':
             return redirect(url_for('main.nova_empresa'))
         return redirect(url_for('main.dashboard'))
 
-    if not cnpj or len(cnpj) < 18:
-        flash('CNPJ incompleto, preencha todos os dígitos.', 'warning')
+    if not nome:
+        flash('Nome da empresa é obrigatório.', 'warning')
         return _redirect_apos_cadastro()
 
+    cnpj_limpo = _normalizar_cnpj(cnpj)
+    if len(cnpj_limpo) != 14:
+        flash('CNPJ inválido, verifique os dígitos.', 'warning')
+        return _redirect_apos_cadastro()
+
+    if not estado or not re.match(r'^[A-Z]{2}$', estado):
+        flash('Estado inválido. Use a sigla com 2 letras (ex: RS).', 'warning')
+        return _redirect_apos_cadastro()
+
+    if not cidade:
+        flash('Cidade é obrigatória.', 'warning')
+        return _redirect_apos_cadastro()
+
+    if inscricao and len(inscricao) > 6:
+        flash('Inscrição municipal deve ter até 6 caracteres.', 'warning')
+        return _redirect_apos_cadastro()
+
+    cnpj_formatado = _formatar_cnpj(cnpj_limpo) or cnpj
+    cnpj = cnpj_formatado
+
     # validacao
-    empresa_existente = Empresa.query.filter_by(cnpj=cnpj).first()
+    cnpj_variantes = {cnpj}
+    if cnpj_limpo:
+        cnpj_variantes.add(cnpj_limpo)
+    if cnpj_formatado:
+        cnpj_variantes.add(cnpj_formatado)
+
+    empresa_existente = Empresa.query.filter(Empresa.cnpj.in_(cnpj_variantes)).first()
     if empresa_existente:
         flash(f'Empresa com CNPJ {cnpj} já está cadastrada.', 'warning')
         return _redirect_apos_cadastro()
