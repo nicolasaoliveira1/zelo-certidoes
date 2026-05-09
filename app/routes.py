@@ -213,6 +213,12 @@ def _fgts_marcar_pendente_por_impedimento(certidao, mensagem_base=None):
             'data_formatada': 'PENDENTE',
             'nova_classe': 'status-vermelho'
         }
+        batch_engine.append_batch_message(
+            FGTS_BATCH_STATE,
+            f"FGTS ID={certidao.id} marcado como pendente por impedimento.",
+            level='warning',
+            certidao_id=certidao.id,
+        )
 
     msg = mensagem_base or 'FGTS com impedimento de emissão automática. Certidão marcada como pendente.'
     return True, msg
@@ -279,6 +285,19 @@ def _formatar_cnpj(cnpj_limpo):
         f"{cnpj_limpo[0:2]}.{cnpj_limpo[2:5]}.{cnpj_limpo[5:8]}/"
         f"{cnpj_limpo[8:12]}-{cnpj_limpo[12:14]}"
     )
+
+
+def _json_error(message, code=400, **extra):
+    texto = message or 'Erro inesperado.'
+    payload = {
+        'status': 'error',
+        'message': texto,
+        'mensagem': texto,
+        'codigo': code,
+        'request_id': CorrelationContext.get_request_id(),
+    }
+    payload.update(extra)
+    return jsonify(payload), code
 
 
 def _montar_politica_autoselect_rs():
@@ -795,6 +814,12 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False, 
                         'data_formatada': 'PENDENTE',
                         'nova_classe': 'status-vermelho'
                     }
+                    batch_engine.append_batch_message(
+                        RS_BATCH_STATE,
+                        f"RS ID={certidao.id} manteve pendente por processamento.",
+                        level='warning',
+                        certidao_id=certidao.id,
+                    )
 
                 return True, False, None
 
@@ -864,6 +889,12 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False, 
                     'data_formatada': 'PENDENTE',
                     'nova_classe': 'status-vermelho'
                 }
+                batch_engine.append_batch_message(
+                    RS_BATCH_STATE,
+                    f"RS ID={certidao.id} positiva: marcada como pendente.",
+                    level='warning',
+                    certidao_id=certidao.id,
+                )
             return True, False, None
 
         nova_data = calcular_validade_padrao(certidao, None)
@@ -882,6 +913,12 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False, 
                 'data_formatada': nova_data.strftime('%d/%m/%Y') if nova_data else None,
                 'nova_classe': _fgts_status_por_data(nova_data)
             }
+            batch_engine.append_batch_message(
+                RS_BATCH_STATE,
+                f"RS ID={certidao.id} emitida com sucesso.",
+                level='info',
+                certidao_id=certidao.id,
+            )
 
         return True, False, None
     except Exception as exc:
@@ -925,9 +962,19 @@ def _rs_batch_worker(app):
                         if RS_BATCH_STATE.get('stop_action') == 'stop':
                             RS_BATCH_STATE['status'] = 'stopped'
                             print("[ESTADUAL-RS-LOTE] Interrompido por parada solicitada.")
+                            batch_engine.append_batch_message(
+                                RS_BATCH_STATE,
+                                'Lote Estadual RS interrompido por solicitação.',
+                                level='warning',
+                            )
                         else:
                             RS_BATCH_STATE['status'] = 'paused'
                             print("[ESTADUAL-RS-LOTE] Pausado por solicitação.")
+                            batch_engine.append_batch_message(
+                                RS_BATCH_STATE,
+                                'Lote Estadual RS pausado por solicitação.',
+                                level='warning',
+                            )
                         break
 
                     if RS_BATCH_STATE['index'] >= RS_BATCH_STATE['total']:
@@ -935,6 +982,11 @@ def _rs_batch_worker(app):
                         RS_BATCH_STATE['current_id'] = None
                         RS_BATCH_STATE['finished_at'] = datetime.utcnow()
                         print("[ESTADUAL-RS-LOTE] Finalizado com sucesso.")
+                        batch_engine.append_batch_message(
+                            RS_BATCH_STATE,
+                            'Lote Estadual RS concluído com sucesso.',
+                            level='info',
+                        )
                         break
 
                     certidao_id = RS_BATCH_STATE['ids'][RS_BATCH_STATE['index']]
@@ -942,6 +994,15 @@ def _rs_batch_worker(app):
                     print(
                         f"[ESTADUAL-RS-LOTE] Iniciando emissão ID={certidao_id} "
                         f"({RS_BATCH_STATE['index'] + 1}/{RS_BATCH_STATE['total']})."
+                    )
+                    batch_engine.append_batch_message(
+                        RS_BATCH_STATE,
+                        (
+                            f"RS iniciando ID={certidao_id} "
+                            f"({RS_BATCH_STATE['index'] + 1}/{RS_BATCH_STATE['total']})."
+                        ),
+                        level='info',
+                        certidao_id=certidao_id,
                     )
 
                 sucesso, grave, mensagem = _emitir_estadual_rs_certidao(
@@ -963,14 +1024,32 @@ def _rs_batch_worker(app):
                         RS_BATCH_STATE['status'] = 'error'
                         RS_BATCH_STATE['message'] = mensagem or 'Erro grave no lote Estadual RS.'
                         print(f"[ESTADUAL-RS-LOTE] Erro grave: {RS_BATCH_STATE['message']}")
+                        batch_engine.append_batch_message(
+                            RS_BATCH_STATE,
+                            RS_BATCH_STATE['message'],
+                            level='error',
+                            certidao_id=certidao_id,
+                        )
                         break
 
                     if not sucesso:
                         RS_BATCH_STATE['falhas'] += 1
                         print(f"[ESTADUAL-RS-LOTE] Falha na emissão ID={certidao_id}: {mensagem}")
+                        batch_engine.append_batch_message(
+                            RS_BATCH_STATE,
+                            f"RS falhou ID={certidao_id}: {mensagem}",
+                            level='warning',
+                            certidao_id=certidao_id,
+                        )
                     else:
                         RS_BATCH_STATE['success'] += 1
                         print(f"[ESTADUAL-RS-LOTE] Emissão OK ID={certidao_id}.")
+                        batch_engine.append_batch_message(
+                            RS_BATCH_STATE,
+                            f"RS OK ID={certidao_id}.",
+                            level='info',
+                            certidao_id=certidao_id,
+                        )
 
                     RS_BATCH_STATE['index'] += 1
         finally:
@@ -1126,9 +1205,19 @@ def _fgts_batch_worker(app):
                     if FGTS_BATCH_STATE.get('stop_action') == 'stop':
                         FGTS_BATCH_STATE['status'] = 'stopped'
                         print("[FGTS-LOTE] Interrompido por parada solicitada.")
+                        batch_engine.append_batch_message(
+                            FGTS_BATCH_STATE,
+                            'Lote FGTS interrompido por solicitação.',
+                            level='warning',
+                        )
                     else:
                         FGTS_BATCH_STATE['status'] = 'paused'
                         print("[FGTS-LOTE] Pausado por solicitação.")
+                        batch_engine.append_batch_message(
+                            FGTS_BATCH_STATE,
+                            'Lote FGTS pausado por solicitação.',
+                            level='warning',
+                        )
                     break
 
                 if FGTS_BATCH_STATE['index'] >= FGTS_BATCH_STATE['total']:
@@ -1136,11 +1225,25 @@ def _fgts_batch_worker(app):
                     FGTS_BATCH_STATE['current_id'] = None
                     FGTS_BATCH_STATE['finished_at'] = datetime.utcnow()
                     print("[FGTS-LOTE] Finalizado com sucesso.")
+                    batch_engine.append_batch_message(
+                        FGTS_BATCH_STATE,
+                        'Lote FGTS concluído com sucesso.',
+                        level='info',
+                    )
                     break
 
                 certidao_id = FGTS_BATCH_STATE['ids'][FGTS_BATCH_STATE['index']]
                 FGTS_BATCH_STATE['current_id'] = certidao_id
                 print(f"[FGTS-LOTE] Iniciando emissão ID={certidao_id} ({FGTS_BATCH_STATE['index'] + 1}/{FGTS_BATCH_STATE['total']}).")
+                batch_engine.append_batch_message(
+                    FGTS_BATCH_STATE,
+                    (
+                        f"FGTS iniciando ID={certidao_id} "
+                        f"({FGTS_BATCH_STATE['index'] + 1}/{FGTS_BATCH_STATE['total']})."
+                    ),
+                    level='info',
+                    certidao_id=certidao_id,
+                )
 
             if driver is None:
                 driver = _criar_driver_chrome()
@@ -1170,14 +1273,32 @@ def _fgts_batch_worker(app):
                     FGTS_BATCH_STATE['status'] = 'error'
                     FGTS_BATCH_STATE['message'] = mensagem or 'Erro grave.'
                     print(f"[FGTS-LOTE] Erro grave: {FGTS_BATCH_STATE['message']}")
+                    batch_engine.append_batch_message(
+                        FGTS_BATCH_STATE,
+                        FGTS_BATCH_STATE['message'],
+                        level='error',
+                        certidao_id=certidao_id,
+                    )
                     break
 
                 if not sucesso:
                     FGTS_BATCH_STATE['falhas'] += 1
                     print(f"[FGTS-LOTE] Falha na emissão ID={certidao_id}. Motivo: {mensagem}")
+                    batch_engine.append_batch_message(
+                        FGTS_BATCH_STATE,
+                        f"FGTS falhou ID={certidao_id}: {mensagem}",
+                        level='warning',
+                        certidao_id=certidao_id,
+                    )
                 else:
                     FGTS_BATCH_STATE['success'] += 1
                     print(f"[FGTS-LOTE] Emissão OK ID={certidao_id}.")
+                    batch_engine.append_batch_message(
+                        FGTS_BATCH_STATE,
+                        f"FGTS OK ID={certidao_id}.",
+                        level='info',
+                        certidao_id=certidao_id,
+                    )
 
                 FGTS_BATCH_STATE['index'] += 1
 
@@ -1208,7 +1329,7 @@ def fgts_lote_iniciar():
     scope = _parse_batch_scope(dados.get('scope'))
 
     if not certidao_id:
-        return jsonify({'status': 'error', 'message': 'Certidão inválida.'}), 400
+        return _json_error('Certidão inválida.', 400)
 
     dados_lote = batch_engine.init_batch_run(
         FGTS_BATCH_LOCK,
@@ -1220,12 +1341,12 @@ def fgts_lote_iniciar():
     )
 
     if dados_lote is None:
-        return jsonify({'status': 'error', 'message': 'Já existe um lote em andamento.'}), 400
+        return _json_error('Já existe um lote em andamento.', 400)
 
     if not dados_lote:
         if scope == 'pendentes':
-            return jsonify({'status': 'error', 'message': 'Nenhuma certidão FGTS pendente para emissão.'}), 400
-        return jsonify({'status': 'error', 'message': 'Nenhuma certidão FGTS vencida ou a vencer.'}), 400
+            return _json_error('Nenhuma certidão FGTS pendente para emissão.', 400)
+        return _json_error('Nenhuma certidão FGTS vencida ou a vencer.', 400)
 
     log_event(
         'fgts_batch_started',
@@ -1236,6 +1357,13 @@ def fgts_lote_iniciar():
     )
     print(f"[FGTS-LOTE] Lote iniciado. Total={dados_lote['total']}.")
 
+    with FGTS_BATCH_LOCK:
+        batch_engine.append_batch_message(
+            FGTS_BATCH_STATE,
+            f"Lote FGTS iniciado. Total={dados_lote['total']}.",
+            level='info',
+        )
+
     return jsonify({'status': 'ok'})
 
 
@@ -1243,6 +1371,13 @@ def fgts_lote_iniciar():
 def fgts_lote_pausar():
     driver = batch_engine.request_pause(FGTS_BATCH_LOCK, FGTS_BATCH_STATE)
     print("[FGTS-LOTE] Pausa solicitada.")
+
+    with FGTS_BATCH_LOCK:
+        batch_engine.append_batch_message(
+            FGTS_BATCH_STATE,
+            'Lote FGTS pausado por solicitação.',
+            level='warning',
+        )
 
     _fgts_quit_driver_async(driver)
 
@@ -1253,6 +1388,13 @@ def fgts_lote_pausar():
 def fgts_lote_parar():
     driver = batch_engine.request_stop(FGTS_BATCH_LOCK, FGTS_BATCH_STATE)
     print("[FGTS-LOTE] Parada solicitada.")
+
+    with FGTS_BATCH_LOCK:
+        batch_engine.append_batch_message(
+            FGTS_BATCH_STATE,
+            'Lote FGTS interrompido por solicitação.',
+            level='warning',
+        )
 
     _fgts_quit_driver_async(driver)
 
@@ -1267,9 +1409,16 @@ def fgts_lote_retomar():
         _fgts_batch_worker,
         app_factory=_current_app_object,
     ):
-        return jsonify({'status': 'error', 'message': 'Lote não está pausado.'}), 400
+        return _json_error('Lote não está pausado.', 400)
 
     print("[FGTS-LOTE] Retomada solicitada.")
+
+    with FGTS_BATCH_LOCK:
+        batch_engine.append_batch_message(
+            FGTS_BATCH_STATE,
+            'Lote FGTS retomado por solicitação.',
+            level='info',
+        )
 
     return jsonify({'status': 'ok'})
 
@@ -1304,13 +1453,10 @@ def estadual_rs_lote_iniciar():
     scope = _parse_batch_scope(dados.get('scope'))
 
     if not certidao_id:
-        return jsonify({'status': 'error', 'message': 'Certidão inválida.'}), 400
+        return _json_error('Certidão inválida.', 400)
 
     if not _to_bool(_get_config_value('RS_ALTCHA_AUTOSOLVE_ENABLED', False), False):
-        return jsonify({
-            'status': 'error',
-            'message': 'Ative RS_ALTCHA_AUTOSOLVE_ENABLED para usar lote Estadual RS.'
-        }), 400
+        return _json_error('Ative RS_ALTCHA_AUTOSOLVE_ENABLED para usar lote Estadual RS.', 400)
 
     dados_lote = batch_engine.init_batch_run(
         RS_BATCH_LOCK,
@@ -1322,12 +1468,12 @@ def estadual_rs_lote_iniciar():
     )
 
     if dados_lote is None:
-        return jsonify({'status': 'error', 'message': 'Já existe um lote Estadual RS em andamento.'}), 400
+        return _json_error('Já existe um lote Estadual RS em andamento.', 400)
 
     if not dados_lote:
         if scope == 'pendentes':
-            return jsonify({'status': 'error', 'message': 'Nenhuma certidão Estadual RS pendente para emissão.'}), 400
-        return jsonify({'status': 'error', 'message': 'Nenhuma certidão Estadual RS vencida ou a vencer.'}), 400
+            return _json_error('Nenhuma certidão Estadual RS pendente para emissão.', 400)
+        return _json_error('Nenhuma certidão Estadual RS vencida ou a vencer.', 400)
 
     log_event(
         'rs_batch_started',
@@ -1338,6 +1484,13 @@ def estadual_rs_lote_iniciar():
     )
     print(f"[ESTADUAL-RS-LOTE] Lote iniciado. Total={dados_lote['total']}.")
 
+    with RS_BATCH_LOCK:
+        batch_engine.append_batch_message(
+            RS_BATCH_STATE,
+            f"Lote Estadual RS iniciado. Total={dados_lote['total']}.",
+            level='info',
+        )
+
     return jsonify({'status': 'ok'})
 
 
@@ -1345,6 +1498,13 @@ def estadual_rs_lote_iniciar():
 def estadual_rs_lote_pausar():
     driver = batch_engine.request_pause(RS_BATCH_LOCK, RS_BATCH_STATE)
     print("[ESTADUAL-RS-LOTE] Pausa solicitada.")
+
+    with RS_BATCH_LOCK:
+        batch_engine.append_batch_message(
+            RS_BATCH_STATE,
+            'Lote Estadual RS pausado por solicitação.',
+            level='warning',
+        )
 
     _fgts_quit_driver_async(driver)
 
@@ -1355,6 +1515,13 @@ def estadual_rs_lote_pausar():
 def estadual_rs_lote_parar():
     driver = batch_engine.request_stop(RS_BATCH_LOCK, RS_BATCH_STATE)
     print("[ESTADUAL-RS-LOTE] Parada solicitada.")
+
+    with RS_BATCH_LOCK:
+        batch_engine.append_batch_message(
+            RS_BATCH_STATE,
+            'Lote Estadual RS interrompido por solicitação.',
+            level='warning',
+        )
 
     _fgts_quit_driver_async(driver)
 
@@ -1369,9 +1536,16 @@ def estadual_rs_lote_retomar():
         _rs_batch_worker,
         app_factory=_current_app_object,
     ):
-        return jsonify({'status': 'error', 'message': 'Lote Estadual RS não está pausado.'}), 400
+        return _json_error('Lote Estadual RS não está pausado.', 400)
 
     print("[ESTADUAL-RS-LOTE] Retomada solicitada.")
+
+    with RS_BATCH_LOCK:
+        batch_engine.append_batch_message(
+            RS_BATCH_STATE,
+            'Lote Estadual RS retomado por solicitação.',
+            level='info',
+        )
 
     return jsonify({'status': 'ok'})
 
@@ -1387,20 +1561,20 @@ def fgts_emitir_unico():
     certidao_id = dados.get('certidao_id')
 
     if not certidao_id:
-        return jsonify({'status': 'error', 'message': 'Certidão inválida.'}), 400
+        return _json_error('Certidão inválida.', 400)
 
     with FGTS_BATCH_LOCK:
         if FGTS_BATCH_STATE['status'] == 'running':
-            return jsonify({'status': 'error', 'message': 'Lote em andamento. Pare o lote para emitir individual.'}), 400
+            return _json_error('Lote em andamento. Pare o lote para emitir individual.', 400)
 
     execution_id = CorrelationContext.new_execution_id()
     sucesso, grave, mensagem = _emitir_fgts_certidao(certidao_id, execution_id=execution_id)
 
     if grave:
-        return jsonify({'status': 'error', 'message': mensagem or 'Erro grave no FGTS.'}), 500
+        return _json_error(mensagem or 'Erro grave no FGTS.', 500)
 
     if not sucesso:
-        return jsonify({'status': 'error', 'message': mensagem or 'Falha ao emitir certidão FGTS.'}), 400
+        return _json_error(mensagem or 'Falha ao emitir certidão FGTS.', 400)
 
     certidao = Certidao.query.get(certidao_id)
     data_formatada = certidao.data_validade.strftime('%d/%m/%Y') if certidao and certidao.data_validade else None
@@ -2421,10 +2595,10 @@ def baixar_certidao(certidao_id):
     if tipo_certidao_chave == 'ESTADUAL' and (certidao.empresa.estado or '').strip().upper() == 'RS':
         with RS_BATCH_LOCK:
             if RS_BATCH_STATE['status'] in ['running', 'paused']:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Lote Estadual RS em andamento. Aguarde finalizar ou interrompa o lote.'
-                }), 400
+                return _json_error(
+                    'Lote Estadual RS em andamento. Aguarde finalizar ou interrompa o lote.',
+                    400,
+                )
 
     by_map = {
         'id': By.ID,
@@ -2525,10 +2699,11 @@ def baixar_certidao(certidao_id):
                 info_site['slow_typing'] = True
 
             if regra_municipio.automacao_ativa is False:
-                return jsonify({
-                    "status": "manual_required",
-                    "message": "Automação desativada para este município. Use o botão 'Abrir Site'."
-                })
+                return _json_error(
+                    "Automação desativada para este município. Use o botão 'Abrir Site'.",
+                    409,
+                    status='manual_required',
+                )
 
             config_municipal = _carregar_config_municipio(regra_municipio)
             usar_config_municipal = bool(config_municipal)
@@ -2536,10 +2711,11 @@ def baixar_certidao(certidao_id):
             cidade_regra_norm = file_manager.remover_acentos(regra_municipio.nome or '').upper()
             if cidade_regra_norm == 'IMBE':
                 if imbe_tipo not in ['mobiliario', 'geral']:
-                    return jsonify({
-                        'status': 'manual_required',
-                        'message': 'Para Imbé, selecione no modal: Certidão Municipal Mobiliário ou Geral.'
-                    })
+                    return _json_error(
+                        'Para Imbé, selecione no modal: Certidão Municipal Mobiliário ou Geral.',
+                        409,
+                        status='manual_required',
+                    )
 
                 _aplicar_variantes_imbe(info_site, config_municipal, imbe_tipo)
 
@@ -2547,13 +2723,10 @@ def baixar_certidao(certidao_id):
                 info_site['cnpj_field_id'] = None
             
         else:
-            return jsonify({'status': 'error', 'message': 'Regra municipal não encontrada'})
+            return _json_error('Regra municipal não encontrada', 404)
 
     if tipo_certidao_chave == 'MUNICIPAL' and not usar_config_municipal:
-        return jsonify({
-            'status': 'error',
-            'message': 'Municipio sem automacao. Configure para prosseguir.'
-        })
+        return _json_error('Municipio sem automacao. Configure para prosseguir.', 409)
 
     cnpj_limpo = ''.join(filter(str.isdigit, certidao.empresa.cnpj))
     inscricao_limpa = certidao.empresa.inscricao_mobiliaria or ''
@@ -2935,7 +3108,7 @@ def baixar_certidao(certidao_id):
                 driver.quit()
             except:
                 pass
-        return jsonify({"status": "error", "message": "Ocorreu um erro na automação."}), 500
+        return _json_error("Ocorreu um erro na automação.", 500)
     finally:
         if rs_autoselect_temporario_ativo:
             _desativar_politica_autoselect_rs_temporaria()
@@ -2950,10 +3123,7 @@ def baixar_certidao(certidao_id):
         return jsonify(response_data)
 
     if rs_estadual_classificacao == 'erro':
-        return jsonify({
-            'status': 'error',
-            'message': rs_estadual_msg or 'Erro ao tratar certidão positiva do RS.'
-        }), 500
+        return _json_error(rs_estadual_msg or 'Erro ao tratar certidão positiva do RS.', 500)
 
     if municipal_pdf_classificacao == 'positiva':
         response_data['status'] = 'municipal_pdf_positiva'
@@ -2963,10 +3133,7 @@ def baixar_certidao(certidao_id):
         return jsonify(response_data)
 
     if municipal_pdf_classificacao == 'erro':
-        return jsonify({
-            'status': 'error',
-            'message': municipal_pdf_msg or 'Erro ao tratar certidão municipal positiva.'
-        }), 500
+        return _json_error(municipal_pdf_msg or 'Erro ao tratar certidão municipal positiva.', 500)
 
     if arquivo_salvo_msg:
         response_data['status'] = 'success_file_saved'
@@ -3034,7 +3201,7 @@ def salvar_data_confirmada():
             'nova_classe': nova_classe
         })
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return _json_error(str(e), 500)
 
 
 @bp.route('/certidao/monitorar_download_federal/<int:certidao_id>')
@@ -3066,7 +3233,7 @@ def monitorar_download_federal(certidao_id):
             print(
                 f"MONITORAMENTO FEDERAL (ID {certidao_id}) INTERROMPIDO POR NOVA REQUISIÇÃO.")
             file_manager.remover_chave_interrupcao()
-            return jsonify({'status': 'interrupted', 'mensagem': 'Monitoramento interrompido.'})
+            return _json_error('Monitoramento interrompido.', 409, status='interrupted')
 
         novo_arquivo = file_manager.verificar_novo_arquivo(
             tempo_inicio, termos_ignorar=termos_proibidos)
@@ -3102,16 +3269,13 @@ def monitorar_download_federal(certidao_id):
                     'visualizar_token': _gerar_visualizar_token(certidao_id)
                 })
             else:
-                return jsonify({
-                    'status': 'error',
-                    'mensagem': f"Erro ao mover: {msg}"
-                })
+                return _json_error(f"Erro ao mover: {msg}", 500)
 
         time.sleep(1)
 
     # limpeza final por segurança
     file_manager.remover_chave_interrupcao()
-    return jsonify({'status': 'timeout', 'mensagem': 'Tempo esgotado sem download.'})
+    return _json_error('Tempo esgotado sem download.', 408, status='timeout')
 
 
 @bp.route('/certidao/visualizar/<token>')
@@ -3158,7 +3322,7 @@ def marcar_pendente_json(certidao_id):
         return jsonify({'status': 'success'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return _json_error(str(e), 500)
 
 
 @bp.route('/certidao/atualizar_json/<int:certidao_id>', methods=['POST'])
@@ -3192,8 +3356,8 @@ def atualizar_validade_json(certidao_id):
                 'nova_classe': nova_classe
             })
         else:
-            return jsonify({'status': 'error', 'message': 'Data inválida.'})
+            return _json_error('Data inválida.', 400)
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return _json_error(str(e), 500)
