@@ -635,6 +635,9 @@
             </p>
             <p class="text-light fw-semibold mb-2" id="rsBatchProgress">0/0 concluídas</p>
             <p class="text-light fw-semibold mb-2" id="rsBatchFalhas">Falhas: 0</p>
+            <p class="text-light fw-semibold mb-2" id="rsBatchSuccess">Sucessos: 0</p>
+            <p class="text-light fw-semibold mb-2" id="rsBatchRemaining">Restantes: 0</p>
+            <p class="text-light small mb-2 d-none" id="rsBatchLastMessage"></p>
             <div class="d-flex justify-content-center gap-2">
                 <button class="btn btn-outline-light" id="btnRsBatchPause">Pausar</button>
                 <button class="btn btn-outline-warning d-none" id="btnRsBatchResume">Retomar</button>
@@ -653,6 +656,9 @@
             </p>
             <p class="text-light fw-semibold mb-2" id="fgtsBatchProgress">0/0 concluídas</p>
             <p class="text-light fw-semibold mb-2" id="fgtsBatchFalhas">Falhas: 0</p>
+            <p class="text-light fw-semibold mb-2" id="fgtsBatchSuccess">Sucessos: 0</p>
+            <p class="text-light fw-semibold mb-2" id="fgtsBatchRemaining">Restantes: 0</p>
+            <p class="text-light small mb-2 d-none" id="fgtsBatchLastMessage"></p>
             <div class="d-flex justify-content-center gap-2">
                 <button class="btn btn-outline-light" id="btnFgtsBatchPause">Pausar</button>
                 <button class="btn btn-outline-warning d-none" id="btnFgtsBatchResume">Retomar</button>
@@ -792,6 +798,9 @@
             const fgtsBatchOverlay = document.getElementById('fgts-batch-overlay');
             const fgtsBatchProgress = document.getElementById('fgtsBatchProgress');
             const fgtsBatchFalhas = document.getElementById('fgtsBatchFalhas');
+            const fgtsBatchSuccess = document.getElementById('fgtsBatchSuccess');
+            const fgtsBatchRemaining = document.getElementById('fgtsBatchRemaining');
+            const fgtsBatchLastMessage = document.getElementById('fgtsBatchLastMessage');
             const btnFgtsBatchPause = document.getElementById('btnFgtsBatchPause');
             const btnFgtsBatchResume = document.getElementById('btnFgtsBatchResume');
             const btnFgtsBatchStop = document.getElementById('btnFgtsBatchStop');
@@ -826,6 +835,9 @@
             const rsBatchOverlay = document.getElementById('rs-batch-overlay');
             const rsBatchProgress = document.getElementById('rsBatchProgress');
             const rsBatchFalhas = document.getElementById('rsBatchFalhas');
+            const rsBatchSuccess = document.getElementById('rsBatchSuccess');
+            const rsBatchRemaining = document.getElementById('rsBatchRemaining');
+            const rsBatchLastMessage = document.getElementById('rsBatchLastMessage');
             const btnRsBatchPause = document.getElementById('btnRsBatchPause');
             const btnRsBatchResume = document.getElementById('btnRsBatchResume');
             const btnRsBatchStop = document.getElementById('btnRsBatchStop');
@@ -1486,6 +1498,31 @@
                 return `${Math.round((sucessoNum / totalNum) * 100)}%`;
             }
 
+            function resolveLastMessage(data) {
+                if (!data || !Array.isArray(data.last_messages)) return null;
+                if (!data.last_messages.length) return null;
+                return data.last_messages[data.last_messages.length - 1];
+            }
+
+            function applyLastMessage(el, data) {
+                if (!el) return;
+                const last = resolveLastMessage(data);
+                if (!last || !last.message) {
+                    el.textContent = '';
+                    el.classList.add('d-none');
+                    return;
+                }
+
+                const nivel = (last.level || '').toString().toLowerCase();
+                let classe = 'text-light';
+                if (nivel === 'warning') classe = 'text-warning';
+                if (nivel === 'error') classe = 'text-danger';
+
+                el.textContent = `Ultima: ${last.message}`;
+                el.classList.remove('d-none', 'text-light', 'text-warning', 'text-danger');
+                el.classList.add(classe);
+            }
+
             function applySummaryOutcomeVisual(scope, labelEl, cardEl) {
                 if (!labelEl || !cardEl) return;
 
@@ -1523,8 +1560,17 @@
                         .then(data => {
                             if (!data) return;
 
-                            if (config.progressEl) config.progressEl.textContent = `${data.index || 0}/${data.total || 0} concluídas`;
+                            const total = Number(data.total || 0);
+                            const index = Number(data.index || 0);
+                            const remaining = Number(
+                                data.remaining !== undefined ? data.remaining : Math.max(total - index, 0)
+                            );
+
+                            if (config.progressEl) config.progressEl.textContent = `${index}/${total} concluídas`;
                             if (config.falhasEl) config.falhasEl.textContent = `Falhas: ${data.falhas || 0}`;
+                            if (config.successEl) config.successEl.textContent = `Sucessos: ${data.success || 0}`;
+                            if (config.remainingEl) config.remainingEl.textContent = `Restantes: ${remaining}`;
+                            applyLastMessage(config.lastMessageEl, data);
 
                             atualizarUltimaLinhaConcluida(data, config.getLastCompletedId, config.setLastCompletedId);
 
@@ -1717,6 +1763,9 @@
                 getTipoCert: () => fgtsBatchTipoCert,
                 progressEl: fgtsBatchProgress,
                 falhasEl: fgtsBatchFalhas,
+                successEl: fgtsBatchSuccess,
+                remainingEl: fgtsBatchRemaining,
+                lastMessageEl: fgtsBatchLastMessage,
                 overlayEl: fgtsBatchOverlay,
                 resumeBtn: btnFgtsBatchResume,
                 pauseBtn: btnFgtsBatchPause,
@@ -1766,6 +1815,9 @@
                 getTipoCert: () => rsBatchTipoCert,
                 progressEl: rsBatchProgress,
                 falhasEl: rsBatchFalhas,
+                successEl: rsBatchSuccess,
+                remainingEl: rsBatchRemaining,
+                lastMessageEl: rsBatchLastMessage,
                 overlayEl: rsBatchOverlay,
                 resumeBtn: btnRsBatchResume,
                 pauseBtn: btnRsBatchPause,

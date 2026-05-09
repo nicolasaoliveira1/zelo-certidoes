@@ -30,6 +30,7 @@ def batch_state_defaults():
         'negativas': 0,
         'efeito_negativas': 0,
         'execution_id': None,
+        'last_messages': [],
     }
 
 
@@ -38,10 +39,15 @@ def reset_batch_state(batch_state):
 
 
 def build_batch_status_payload(batch_state):
+    total = batch_state['total']
+    index = batch_state['index']
+    remaining = max(total - index, 0)
     return {
         'status': batch_state['status'],
-        'total': batch_state['total'],
-        'index': batch_state['index'],
+        'total': total,
+        'index': index,
+        'processed': index,
+        'remaining': remaining,
         'scope': batch_state.get('scope', 'default'),
         'falhas': batch_state['falhas'],
         'current_id': batch_state['current_id'],
@@ -49,6 +55,7 @@ def build_batch_status_payload(batch_state):
         'a_vencer': batch_state['a_vencer'],
         'pendentes': batch_state.get('pendentes', 0),
         'message': batch_state['message'],
+        'last_messages': list(batch_state.get('last_messages', [])),
         'last_completed': batch_state.get('last_completed'),
         'success': batch_state.get('success', 0),
         'execution_id': batch_state.get('execution_id'),
@@ -59,6 +66,23 @@ def build_batch_status_payload(batch_state):
         'started_at': batch_state['started_at'].isoformat() if batch_state.get('started_at') else None,
         'finished_at': batch_state['finished_at'].isoformat() if batch_state.get('finished_at') else None,
     }
+
+
+def append_batch_message(batch_state, message, level='info', certidao_id=None, max_items=6):
+    if not message:
+        return
+
+    messages = batch_state.setdefault('last_messages', [])
+    messages.append({
+        'message': message,
+        'level': level,
+        'certidao_id': certidao_id,
+        'timestamp': datetime.utcnow().isoformat()
+    })
+    if len(messages) > max_items:
+        del messages[:-max_items]
+
+    batch_state['message'] = message
 
 
 def run_worker(worker_fn, app_factory):
