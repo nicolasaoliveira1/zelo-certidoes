@@ -40,6 +40,9 @@ class Config:
 
     CAMINHO_REDE = os.environ.get('CAMINHO_REDE') or r"Z:\\PASTAS EMPRESAS"
 
+    LOG_LEVEL = (os.environ.get('LOG_LEVEL') or 'INFO').strip().upper()
+    QUIET_WERKZEUG_LOGS = _env_bool('QUIET_WERKZEUG_LOGS', True)
+
     RS_CERT_AUTOSELECT_ENABLED = _env_bool('RS_CERT_AUTOSELECT_ENABLED', False)
     RS_CERT_AUTOSELECT_PATTERN = os.environ.get('RS_CERT_AUTOSELECT_PATTERN') or \
         'https://www.sefaz.rs.gov.br'

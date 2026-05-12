@@ -193,6 +193,7 @@ O caminho base pode ser configurado via variável `CAMINHO_REDE`. Ajuste conform
 ### Logs e health check
 
 - Os eventos de observabilidade aparecem no mesmo terminal em que o Flask está rodando.
+- Para ajustar verbosidade local, use `LOG_LEVEL` e `QUIET_WERKZEUG_LOGS` no `.env`.
 - O endpoint `GET /health` retorna `ok` ou `degraded` com detalhes de:
   - banco de dados,
   - caminho de rede,
