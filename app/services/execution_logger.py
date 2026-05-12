@@ -1,11 +1,15 @@
 import json
 import logging
+import os
+import socket
 from datetime import datetime, timezone
 
 from app.services.correlation import CorrelationContext
 
 
 LOGGER_NAME = 'certidoes'
+HOSTNAME = socket.gethostname()
+PROCESS_ID = os.getpid()
 
 
 def configure_logging(level='INFO'):
@@ -30,6 +34,8 @@ def log_event(event, level='INFO', **fields):
         'level': level,
         'request_id': CorrelationContext.get_request_id(),
         'execution_id': CorrelationContext.get_execution_id(),
+        'host': HOSTNAME,
+        'pid': PROCESS_ID,
     }
     payload.update(fields)
 
