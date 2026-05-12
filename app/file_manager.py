@@ -48,6 +48,8 @@ def remover_acentos(texto):
 
 
 def buscar_na_pasta_especifica(caminho_base, nome_banco):
+    if not nome_banco or not str(nome_banco).strip():
+        return None
     if not os.path.exists(caminho_base):
         return None
 
@@ -121,6 +123,8 @@ def buscar_na_pasta_especifica(caminho_base, nome_banco):
 
 
 def encontrar_pasta_empresa(nome_banco):
+    if not nome_banco or not str(nome_banco).strip():
+        return None
     inicio = time.time()
     resultado_principal = buscar_na_pasta_especifica(CAMINHO_REDE, nome_banco)
     if resultado_principal:
