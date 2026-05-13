@@ -51,7 +51,12 @@ def _check_chrome_profile(config):
 
 def _check_solver_config(config):
     key = (config.get('CAPTCHA_2_API_KEY') or '').strip()
-    return bool(key), 'ok' if key else 'CAPTCHA_2_API_KEY ausente'
+    server = (config.get('CAPTCHA_2_SERVER') or '2captcha.com').strip() or '2captcha.com'
+    return bool(key), {
+        'status': 'ok' if key else 'missing',
+        'server': server,
+        'message': 'CAPTCHA_2_API_KEY ausente' if not key else 'ok',
+    }
 
 
 def run_health_checks(config):
