@@ -40,6 +40,12 @@ def map_exception_to_error_type(exc):
     if 'NETWORK' in text or 'Z:' in text or 'PATH' in text:
         return ErrorType.NETWORK_PATH
 
+    if 'ECONN' in text or 'CONNECTION' in text or 'CONNREFUSED' in text or 'CONNRESET' in text:
+        return ErrorType.NETWORK_PATH
+
+    if 'DNS' in text or 'NAME RESOLUTION' in text:
+        return ErrorType.NETWORK_PATH
+
     if 'SQL' in text or 'DATABASE' in text or 'DB' in text:
         return ErrorType.DB
 
