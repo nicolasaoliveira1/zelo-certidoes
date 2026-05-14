@@ -2015,6 +2015,142 @@ def dashboard():
     )
 
 
+@bp.route('/empresas')
+def empresas():
+    termo = (request.args.get('q') or '').strip()
+    estado_filtro = (request.args.get('estado') or '').strip().upper()
+    cidade_filtro = (request.args.get('cidade') or '').strip()
+
+    query = Empresa.query
+    if termo:
+        query = query.filter(Empresa.nome.ilike(f"%{termo}%"))
+
+    if estado_filtro:
+        query = query.filter(Empresa.estado == estado_filtro)
+
+    cidades_variantes = {}
+    cidades_db = db.session.query(Empresa.cidade).all()
+    for row in cidades_db:
+        cidade = (row[0] or '').strip()
+        if not cidade:
+            continue
+
+        chave_normalizada = _normalizar_cidade_dashboard(cidade)
+        if not chave_normalizada:
+            continue
+
+        variantes = cidades_variantes.setdefault(chave_normalizada, {})
+        variantes[cidade] = variantes.get(cidade, 0) + 1
+
+    cidades_por_chave = {
+        chave: _escolher_cidade_canonica_dashboard(variantes)
+        for chave, variantes in cidades_variantes.items()
+    }
+    cidades_disponiveis = sorted(
+        cidades_por_chave.values(),
+        key=_normalizar_cidade_dashboard,
+    )
+
+    empresas = query.order_by(Empresa.id).all()
+
+    if cidade_filtro:
+        chave_filtro = _normalizar_cidade_dashboard(cidade_filtro)
+        if chave_filtro:
+            empresas = [
+                empresa for empresa in empresas
+                if _normalizar_cidade_dashboard(empresa.cidade) == chave_filtro
+            ]
+            cidade_filtro = cidades_por_chave.get(chave_filtro, cidade_filtro)
+
+    estados_disponiveis = [
+        row[0] for row in
+        db.session.query(Empresa.estado).distinct().order_by(Empresa.estado).all()
+    ]
+
+    return render_template(
+        'empresas.html',
+        empresas=empresas,
+        termo=termo,
+        estado_filtro=estado_filtro,
+        cidade_filtro=cidade_filtro,
+        estados_disponiveis=estados_disponiveis,
+        cidades_disponiveis=cidades_disponiveis,
+    )
+
+
+@bp.route('/empresa/<int:empresa_id>')
+def empresa_detalhe(empresa_id):
+    empresa = Empresa.query.get_or_404(empresa_id)
+    certidoes = sorted(empresa.certidoes.all(), key=lambda item: item.ordem_exibicao)
+    return render_template(
+        'empresa_detalhe.html',
+        empresa=empresa,
+        certidoes=certidoes,
+        hoje=date.today(),
+    )
+
+
+@bp.route('/empresa/<int:empresa_id>/editar', methods=['POST'])
+def empresa_editar(empresa_id):
+    empresa = Empresa.query.get_or_404(empresa_id)
+    nome = (request.form.get('nome') or '').strip()
+    estado = (request.form.get('estado') or '').strip().upper()
+    cidade = (request.form.get('cidade') or '').strip()
+    inscricao = (request.form.get('inscricao_mobiliaria') or '').strip()
+    next_url = request.form.get('next') or url_for('main.empresa_detalhe', empresa_id=empresa_id)
+
+    if not nome:
+        flash('Nome da empresa é obrigatório.', 'warning')
+        return redirect(next_url)
+
+    if not estado or not re.match(r'^[A-Z]{2}$', estado):
+        flash('Estado inválido. Use a sigla com 2 letras (ex: RS).', 'warning')
+        return redirect(next_url)
+
+    if not cidade:
+        flash('Cidade é obrigatória.', 'warning')
+        return redirect(next_url)
+
+    if inscricao and len(inscricao) > 6:
+        flash('Inscrição municipal deve ter até 6 caracteres.', 'warning')
+        return redirect(next_url)
+
+    empresa.nome = nome
+    empresa.estado = estado
+    empresa.cidade = cidade
+    empresa.inscricao_mobiliaria = inscricao if inscricao else None
+
+    try:
+        db.session.commit()
+        flash('Empresa atualizada com sucesso.', 'success')
+    except Exception as exc:
+        db.session.rollback()
+        flash(f'Erro ao atualizar empresa: {exc}', 'danger')
+
+    return redirect(next_url)
+
+
+@bp.route('/empresa/<int:empresa_id>/remover', methods=['POST'])
+def empresa_remover(empresa_id):
+    empresa = Empresa.query.get_or_404(empresa_id)
+    next_url = request.form.get('next') or url_for('main.empresas')
+    confirmacao = (request.form.get('confirm') or '').strip().lower()
+
+    if confirmacao != '1':
+        flash('Confirmação de remoção não recebida.', 'warning')
+        return redirect(next_url)
+
+    try:
+        db.session.delete(empresa)
+        db.session.commit()
+        flash(f'Empresa "{empresa.nome}" removida com sucesso.', 'success')
+    except Exception as exc:
+        db.session.rollback()
+        flash(f'Erro ao remover empresa: {exc}', 'danger')
+
+    return redirect(next_url)
+
+
 @bp.route('/empresa/nova', endpoint='nova_empresa')
 def pagina_nova_empresa():
     return render_template('nova_empresa.html')

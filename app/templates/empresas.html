@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+    <div>
+        <h4 class="mb-1 fw-bold">Empresas</h4>
+    </div>
+    <a class="btn btn-success" href="{{ url_for('main.nova_empresa') }}">
+        <i class="bi bi-building-add me-1"></i> Nova Empresa
+    </a>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-12 col-md-5">
+                <label class="form-label" for="filtroNome">Buscar empresa</label>
+                <input type="search" class="form-control" id="filtroNome" name="q"
+                       placeholder="Nome da empresa" value="{{ termo }}">
+            </div>
+
+            <div class="col-12 col-md-3">
+                <label class="form-label" for="filtroEstado">Estado</label>
+                <select class="form-select" id="filtroEstado" name="estado">
+                    <option value="">Todos</option>
+                    {% for uf in estados_disponiveis %}
+                    <option value="{{ uf }}" {% if estado_filtro == uf %}selected{% endif %}>{{ uf }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-12 col-md-4">
+                <label class="form-label" for="filtroCidade">Cidade</label>
+                <select class="form-select" id="filtroCidade" name="cidade">
+                    <option value="">Todas</option>
+                    {% for cidade in cidades_disponiveis %}
+                    <option value="{{ cidade }}" {% if cidade_filtro == cidade %}selected{% endif %}>{{ cidade }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-12 d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-primary">Filtrar</button>
+                <a class="btn btn-outline-secondary" href="{{ url_for('main.empresas') }}">Limpar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        {% if empresas %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-uppercase small text-muted">
+                    <tr>
+                        <th class="ps-4">Empresa</th>
+                        <th>CNPJ</th>
+                        <th>Estado</th>
+                        <th>Cidade</th>
+                        <th>Inscricao</th>
+                        <th>Certidoes</th>
+                        <th class="text-end pe-4">Acoes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for empresa in empresas %}
+                    <tr>
+                        <td class="ps-4 fw-semibold">{{ empresa.nome }}</td>
+                        <td>{{ empresa.cnpj }}</td>
+                        <td>{{ empresa.estado }}</td>
+                        <td>{{ empresa.cidade }}</td>
+                        <td>{{ empresa.inscricao_mobiliaria or '-' }}</td>
+                        <td>{{ empresa.certidoes.count() }}</td>
+                        <td class="text-end pe-4">
+                            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.empresa_detalhe', empresa_id=empresa.id) }}">
+                                Ver/Editar
+                            </a>
+                            <form method="POST" action="{{ url_for('main.empresa_remover', empresa_id=empresa.id) }}" class="d-inline"
+                                  onsubmit="return confirm('Remover a empresa {{ empresa.nome }}? Esta acao e definitiva.');">
+                                <input type="hidden" name="confirm" value="1">
+                                <input type="hidden" name="next" value="{{ request.full_path }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Remover</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-4">
+            <p class="mb-0 text-muted">Nenhuma empresa encontrada com os filtros atuais.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
