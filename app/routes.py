@@ -2130,11 +2130,23 @@ def empresa_editar(empresa_id):
     return redirect(next_url)
 
 
-@bp.route('/empresa/<int:empresa_id>/remover', methods=['POST'])
+@bp.route('/empresa/<int:empresa_id>/remover', methods=['GET', 'POST'])
 def empresa_remover(empresa_id):
     empresa = Empresa.query.get_or_404(empresa_id)
-    next_url = request.form.get('next') or url_for('main.empresas')
+    next_url = request.values.get('next') or url_for('main.empresas')
+    detalhe_url = url_for('main.empresa_detalhe', empresa_id=empresa_id)
+
+    if request.method == 'GET':
+        return render_template(
+            'empresa_remover_confirm.html',
+            empresa=empresa,
+            next_url=next_url,
+        )
+
     confirmacao = (request.form.get('confirm') or '').strip().lower()
+
+    if next_url == detalhe_url:
+        next_url = url_for('main.empresas')
 
     if confirmacao != '1':
         flash('Confirmação de remoção não recebida.', 'warning')

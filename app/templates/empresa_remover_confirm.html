@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+    <div>
+        <h4 class="mb-1 fw-bold">Remover empresa</h4>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ next_url }}">Voltar</a>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body">
+        <div class="alert alert-warning" role="alert">
+            Esta ação é definitiva. Todos os dados da empresa serão removidos.
+        </div>
+
+        <div class="mb-3">
+            <div class="fw-semibold">{{ empresa.nome }}</div>
+            <div class="text-muted">CNPJ: {{ empresa.cnpj }}</div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-secondary" href="{{ next_url }}">Cancelar</a>
+            <form method="POST" action="{{ url_for('main.empresa_remover', empresa_id=empresa.id) }}" class="mb-0">
+                <input type="hidden" name="confirm" value="1">
+                <input type="hidden" name="next" value="{{ next_url }}">
+                <button type="submit" class="btn btn-danger">Confirmar remoção</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
