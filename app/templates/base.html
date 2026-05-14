@@ -171,6 +171,10 @@
                 <i class="bi bi-grid-1x2-fill"></i>
                 <span>Dashboard</span>
             </a>
+            <a class="sidebar-link {% if current_endpoint in ['main.empresas', 'main.empresa_detalhe'] %}active{% endif %}" href="{{ url_for('main.empresas') }}" title="Empresas">
+                <i class="bi bi-buildings"></i>
+                <span>Empresas</span>
+            </a>
             <a class="sidebar-link {% if current_endpoint == 'main.nova_empresa' %}active{% endif %}" href="{{ url_for('main.nova_empresa') }}" title="Nova Empresa">
                 <i class="bi bi-building-add"></i>
                 <span>Nova Empresa</span>
