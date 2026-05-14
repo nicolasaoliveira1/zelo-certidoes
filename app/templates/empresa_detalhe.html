@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% macro render_badge(certidao, hoje) -%}
+{%- set badge_class = 'text-bg-success' -%}
+{%- set icone_status = 'bi-check-circle-fill' -%}
+{%- if certidao.status_especial and certidao.status_especial.value == 'Pendente' -%}
+{%- set badge_class = 'text-bg-danger' -%}
+{%- set icone_status = 'bi-exclamation-circle-fill' -%}
+{%- elif not certidao.data_validade -%}
+{%- set badge_class = 'text-bg-secondary' -%}
+{%- set icone_status = 'bi-question-circle-fill' -%}
+{%- elif certidao.data_validade < hoje -%}
+{%- set badge_class = 'text-bg-danger' -%}
+{%- set icone_status = 'bi-x-circle-fill' -%}
+{%- elif (certidao.data_validade - hoje).days <= 7 -%}
+{%- set badge_class = 'text-bg-warning text-dark' -%}
+{%- set icone_status = 'bi-exclamation-triangle-fill' -%}
+{%- endif -%}
+<span class="badge rounded-pill {{ badge_class }} fs-6 fw-normal px-3 py-2 d-inline-flex align-items-center gap-2">
+    <i class="bi {{ icone_status }}"></i>
+    {%- if certidao.status_especial and certidao.status_especial.value == 'Pendente' -%}
+    PENDENTE
+    {%- else -%}
+    {{ certidao.data_validade.strftime('%d/%m/%Y') if certidao.data_validade else 'Nao definida' }}
+    {%- endif -%}
+</span>
+{%- endmacro %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+    <div>
+        <h4 class="mb-1 fw-bold">{{ empresa.nome }}</h4>
+        <p class="text-muted mb-0">CNPJ: {{ empresa.cnpj }}</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.empresas') }}">Voltar</a>
+        <a class="btn btn-success" href="{{ url_for('main.nova_empresa') }}">Nova Empresa</a>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-body-tertiary">
+        <h6 class="mb-0 fw-bold">Dados da empresa</h6>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('main.empresa_editar', empresa_id=empresa.id) }}" class="row g-3" id="empresa-editar-form">
+            <input type="hidden" name="next" value="{{ request.path }}">
+
+            <div class="col-12 col-lg-6">
+                <label class="form-label" for="nome">Nome</label>
+                <input class="form-control" id="nome" name="nome" required maxlength="120" value="{{ empresa.nome }}">
+            </div>
+
+            <div class="col-12 col-lg-6">
+                <label class="form-label" for="cnpj">CNPJ</label>
+                <input class="form-control" id="cnpj" value="{{ empresa.cnpj }}" disabled>
+            </div>
+
+            <div class="col-12 col-lg-4">
+                <label class="form-label" for="estado">Estado (UF)</label>
+                <select class="form-select" id="estado" name="estado" required>
+                    <option value="">Selecione...</option>
+                    <option value="AC" {% if empresa.estado == 'AC' %}selected{% endif %}>Acre</option>
+                    <option value="AL" {% if empresa.estado == 'AL' %}selected{% endif %}>Alagoas</option>
+                    <option value="AP" {% if empresa.estado == 'AP' %}selected{% endif %}>Amapa</option>
+                    <option value="AM" {% if empresa.estado == 'AM' %}selected{% endif %}>Amazonas</option>
+                    <option value="BA" {% if empresa.estado == 'BA' %}selected{% endif %}>Bahia</option>
+                    <option value="CE" {% if empresa.estado == 'CE' %}selected{% endif %}>Ceara</option>
+                    <option value="DF" {% if empresa.estado == 'DF' %}selected{% endif %}>Distrito Federal</option>
+                    <option value="ES" {% if empresa.estado == 'ES' %}selected{% endif %}>Espirito Santo</option>
+                    <option value="GO" {% if empresa.estado == 'GO' %}selected{% endif %}>Goias</option>
+                    <option value="MA" {% if empresa.estado == 'MA' %}selected{% endif %}>Maranhao</option>
+                    <option value="MT" {% if empresa.estado == 'MT' %}selected{% endif %}>Mato Grosso</option>
+                    <option value="MS" {% if empresa.estado == 'MS' %}selected{% endif %}>Mato Grosso do Sul</option>
+                    <option value="MG" {% if empresa.estado == 'MG' %}selected{% endif %}>Minas Gerais</option>
+                    <option value="PA" {% if empresa.estado == 'PA' %}selected{% endif %}>Para</option>
+                    <option value="PB" {% if empresa.estado == 'PB' %}selected{% endif %}>Paraiba</option>
+                    <option value="PR" {% if empresa.estado == 'PR' %}selected{% endif %}>Parana</option>
+                    <option value="PE" {% if empresa.estado == 'PE' %}selected{% endif %}>Pernambuco</option>
+                    <option value="PI" {% if empresa.estado == 'PI' %}selected{% endif %}>Piaui</option>
+                    <option value="RJ" {% if empresa.estado == 'RJ' %}selected{% endif %}>Rio de Janeiro</option>
+                    <option value="RN" {% if empresa.estado == 'RN' %}selected{% endif %}>Rio Grande do Norte</option>
+                    <option value="RS" {% if empresa.estado == 'RS' %}selected{% endif %}>Rio Grande do Sul</option>
+                    <option value="RO" {% if empresa.estado == 'RO' %}selected{% endif %}>Rondonia</option>
+                    <option value="RR" {% if empresa.estado == 'RR' %}selected{% endif %}>Roraima</option>
+                    <option value="SC" {% if empresa.estado == 'SC' %}selected{% endif %}>Santa Catarina</option>
+                    <option value="SP" {% if empresa.estado == 'SP' %}selected{% endif %}>Sao Paulo</option>
+                    <option value="SE" {% if empresa.estado == 'SE' %}selected{% endif %}>Sergipe</option>
+                    <option value="TO" {% if empresa.estado == 'TO' %}selected{% endif %}>Tocantins</option>
+                </select>
+            </div>
+
+            <div class="col-12 col-lg-4">
+                <label class="form-label" for="cidade">Cidade</label>
+                <input class="form-control" id="cidade" name="cidade" required maxlength="50" value="{{ empresa.cidade }}">
+            </div>
+
+            <div class="col-12 col-lg-4">
+                <label class="form-label" for="inscricao_mobiliaria">Inscricao mobiliaria</label>
+                <input class="form-control" id="inscricao_mobiliaria" name="inscricao_mobiliaria"
+                       maxlength="6" value="{{ empresa.inscricao_mobiliaria or '' }}">
+                <div class="form-text">Opcional. Ate 6 caracteres.</div>
+            </div>
+
+        </form>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="submit" class="btn btn-primary" form="empresa-editar-form">Salvar alteracoes</button>
+            <form method="POST" action="{{ url_for('main.empresa_remover', empresa_id=empresa.id) }}" class="d-inline-block mb-0"
+                  onsubmit="return confirm('Remover a empresa {{ empresa.nome }}? Esta acao e definitiva.');">
+                <input type="hidden" name="confirm" value="1">
+                <input type="hidden" name="next" value="{{ request.path }}">
+                <button type="submit" class="btn btn-outline-danger">Remover empresa</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-body-tertiary">
+        <h6 class="mb-0 fw-bold">Certidoes</h6>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-uppercase small text-muted">
+                    <tr>
+                        <th class="ps-4">Tipo</th>
+                        <th class="text-center">Validade / Status</th>
+                        <th class="text-center">PDF salvo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for certidao in certidoes %}
+                    <tr>
+                        <td class="ps-4">
+                            {{ certidao.tipo.value }}
+                            {% if certidao.subtipo %}- {{ certidao.subtipo.value }}{% endif %}
+                        </td>
+                        <td class="text-center">{{ render_badge(certidao, hoje) }}</td>
+                        <td class="text-center">{{ 'Sim' if certidao.caminho_arquivo else 'Nao' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td class="ps-4" colspan="3">Nenhuma certidao encontrada.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
