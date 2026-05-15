@@ -216,7 +216,7 @@ def encontrar_caminho_final(caminho_empresa):
 
     pasta_padrao = os.path.join(pasta_destino, "CERTIDOES")
     try:
-        os.makedirs(pasta_padrao)
+        os.makedirs(pasta_padrao, exist_ok=True)
         return pasta_padrao
     except OSError:
         return pasta_destino
