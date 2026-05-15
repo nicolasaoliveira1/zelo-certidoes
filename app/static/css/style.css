@@ -998,6 +998,12 @@ footer {
     background-color: #e9ecef;
 }
 
+.btn-check:focus + .filter-chip,
+.btn-check:focus-visible + .filter-chip {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
 .btn-check:checked + .filter-chip:hover {
     transform: translateY(-1px);
 }
