@@ -1208,7 +1208,10 @@
                 btnInfoModalOK.addEventListener('click', function () {
                     if (infoModal) infoModal.hide();
                     if (urlParaAbrir) {
-                        const novaAba = window.open(urlParaAbrir, '_blank');
+                        const novaAba = window.open(urlParaAbrir, '_blank', 'noopener');
+                        if (novaAba) {
+                            novaAba.opener = null;
+                        }
 
                         if (!novaAba) {
                             if (tipoParaAbrir === 'FEDERAL') {
@@ -2017,7 +2020,10 @@
                         fetch(url, { method: 'HEAD' })
                             .then(resp => {
                                 if (resp.ok) {
-                                    window.open(url, '_blank');
+                                    const novaAba = window.open(url, '_blank', 'noopener');
+                                    if (novaAba) {
+                                        novaAba.opener = null;
+                                    }
                                 } else {
                                     showToast('Arquivo não encontrado para esta certidão.', 'error');
                                 }
