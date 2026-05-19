@@ -8,7 +8,46 @@
     </div>
 </div>
 
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
 <div class="row g-3">
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-body-tertiary border-bottom">
+                <strong>Validade das certidoes</strong>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('main.configuracoes') }}" class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label" for="a-vencer-dias">A vencer (dias)</label>
+                        <input
+                            type="number"
+                            class="form-control"
+                            id="a-vencer-dias"
+                            name="a_vencer_dias"
+                            min="1"
+                            max="30"
+                            required
+                            value="{{ a_vencer_dias }}"
+                        >
+                        <div class="form-text">Define quantos dias antes do vencimento a certidao fica amarela.</div>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
     <div class="col-12 col-lg-6">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-body-tertiary border-bottom">

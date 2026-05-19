@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% set limite_dias = a_vencer_dias | default(7) %}
 
 {% macro render_badge(certidao, hoje) -%}
 {%- set badge_class = 'text-bg-success' -%}
@@ -10,7 +11,7 @@
 {%- set badge_class = 'text-bg-secondary' -%}
 {%- set icone_status = 'bi-question-circle-fill' -%}
 {%- elif certidao.data_validade < hoje -%} {%- set badge_class='text-bg-danger' -%} {%- set
-    icone_status='bi-x-circle-fill' -%} {%- elif (certidao.data_validade - hoje).days <=7 -%} {%- set
+    icone_status='bi-x-circle-fill' -%} {%- elif (certidao.data_validade - hoje).days <= limite_dias -%} {%- set
     badge_class='text-bg-warning text-dark' -%} {%- set icone_status='bi-exclamation-triangle-fill' -%} {%- endif -%}
     <span class="badge rounded-pill {{ badge_class }} fs-6 fw-normal px-3 py-2 d-inline-flex align-items-center gap-2">
     <i class="bi {{ icone_status }}"></i>
@@ -202,7 +203,7 @@
         {% set status_calculado = '' %}
         {% if c.status_especial and c.status_especial.value == 'Pendente' %}{% set status_calculado = 'pendentes' %}
         {% elif not c.data_validade %}{% set status_calculado = 'nao_definida' %}
-        {% elif c.data_validade < hoje %}{% set status_calculado='vencidas' %} {% elif (c.data_validade - hoje).days <=7
+        {% elif c.data_validade < hoje %}{% set status_calculado='vencidas' %} {% elif (c.data_validade - hoje).days <= limite_dias
             %}{% set status_calculado='a_vencer' %} {% else %}{% set status_calculado='validas' %} {% endif %} {% set
             status_ok=('todas' in status_filtros or status_calculado in status_filtros) %} {% set tipo_ok=('todas' in
             tipo_filtros or c.tipo.name | lower in tipo_filtros) %} {% if status_ok and tipo_ok %} {% set
