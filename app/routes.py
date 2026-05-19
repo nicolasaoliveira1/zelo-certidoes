@@ -47,8 +47,16 @@ from webdriver_manager.chrome import ChromeDriverManager
 from app import db, file_manager
 from app.automation import SITES_CERTIDOES, VALIDADES_CERTIDOES
 from app.errors import map_exception_to_error_type
-from app.models import (Certidao, Empresa, Municipio, StatusEspecial,
-                        SubtipoCertidao, TipoCertidao)
+from app.models import (
+    Certidao,
+    ConfiguracaoSistema,
+    Empresa,
+    Municipio,
+    StatusEspecial,
+    SubtipoCertidao,
+    TipoCertidao,
+    get_a_vencer_dias,
+)
 from app.services import batch_engine
 from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
@@ -123,9 +131,10 @@ def _fgts_status_por_data(nova_data):
 
     hoje = date.today()
     diferenca = (nova_data - hoje).days
+    limite_dias = get_a_vencer_dias()
     if diferenca < 0:
         return 'status-vermelho'
-    if diferenca <= 7:
+    if diferenca <= limite_dias:
         return 'status-amarelo'
     return 'status-verde'
 
@@ -1883,6 +1892,7 @@ def dashboard():
     query = db.session.query(Empresa).distinct()
 
     hoje = date.today()
+    a_vencer_dias = get_a_vencer_dias()
     join_certidao_feito = False
 
     if not status_filtros:
@@ -1898,11 +1908,11 @@ def dashboard():
 
         if 'validas' in status_filtros:
             conditions.append(Certidao.data_validade >
-                              (hoje + timedelta(days=7)))
+                              (hoje + timedelta(days=a_vencer_dias)))
 
         if 'a_vencer' in status_filtros:
             conditions.append(Certidao.data_validade.between(
-                hoje, hoje + timedelta(days=7)))
+                hoje, hoje + timedelta(days=a_vencer_dias)))
 
         if 'vencidas' in status_filtros:
             conditions.append(
@@ -2010,6 +2020,7 @@ def dashboard():
         estados_disponiveis=estados_disponiveis,
         cidades_disponiveis=cidades_disponiveis,
         hoje=hoje,
+        a_vencer_dias=a_vencer_dias,
         sites_urls=SITES_CERTIDOES,
         urls_municipais=urls_municipais
     )
@@ -2087,6 +2098,7 @@ def empresa_detalhe(empresa_id):
         empresa=empresa,
         certidoes=certidoes,
         hoje=date.today(),
+        a_vencer_dias=get_a_vencer_dias(),
     )
 
 
@@ -2171,6 +2183,7 @@ def pagina_nova_empresa():
 @bp.route('/relatorios')
 def relatorios():
     hoje = date.today()
+    a_vencer_dias = get_a_vencer_dias()
     empresas_total = Empresa.query.count()
     certidoes = Certidao.query.all()
 
@@ -2190,7 +2203,7 @@ def relatorios():
         dias_restantes = (certidao.data_validade - hoje).days
         if dias_restantes < 0:
             vencidas += 1
-        elif dias_restantes <= 7:
+        elif dias_restantes <= a_vencer_dias:
             a_vencer += 1
 
     return render_template(
@@ -2200,12 +2213,52 @@ def relatorios():
         pendentes=pendentes,
         vencidas=vencidas,
         a_vencer=a_vencer,
+        a_vencer_dias=a_vencer_dias,
     )
 
 
-@bp.route('/configuracoes')
+@bp.route('/configuracoes', methods=['GET', 'POST'])
 def configuracoes():
-    return render_template('configuracoes.html')
+    try:
+        config = ConfiguracaoSistema.query.get(1)
+    except Exception:
+        config = None
+
+    if not config:
+        config = ConfiguracaoSistema(id=1, a_vencer_dias=7)
+        db.session.add(config)
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+    if request.method == 'POST':
+        valor_str = (request.form.get('a_vencer_dias') or '').strip()
+        try:
+            valor = int(valor_str)
+        except (TypeError, ValueError):
+            flash('Informe um numero inteiro entre 1 e 30.', 'warning')
+            return redirect(url_for('main.configuracoes'))
+
+        if not 1 <= valor <= 30:
+            flash('O limite de "a vencer" deve ficar entre 1 e 30 dias.', 'warning')
+            return redirect(url_for('main.configuracoes'))
+
+        config.a_vencer_dias = valor
+        try:
+            db.session.commit()
+            flash('Configuracoes atualizadas com sucesso.', 'success')
+        except Exception as exc:
+            db.session.rollback()
+            flash(f'Erro ao salvar configuracoes: {exc}', 'danger')
+
+        return redirect(url_for('main.configuracoes'))
+
+    a_vencer_dias = config.a_vencer_dias if config else get_a_vencer_dias()
+    return render_template(
+        'configuracoes.html',
+        a_vencer_dias=a_vencer_dias,
+    )
 
 
 @bp.route('/empresa/adicionar', methods=['POST'])
@@ -3336,11 +3389,12 @@ def salvar_data_confirmada():
 
         hoje = date.today()
         diferenca = (nova_data - hoje).days
+        limite_dias = get_a_vencer_dias()
 
         nova_classe = 'status-verde'
         if diferenca < 0:
             nova_classe = 'status-vermelho'
-        elif diferenca <= 7:
+        elif diferenca <= limite_dias:
             nova_classe = 'status-amarelo'
 
         db.session.commit()
@@ -3491,11 +3545,12 @@ def atualizar_validade_json(certidao_id):
 
             hoje = date.today()
             diferenca = (nova_data - hoje).days
+            limite_dias = get_a_vencer_dias()
 
             nova_classe = 'status-verde'
             if diferenca < 0:
                 nova_classe = 'status-vermelho'
-            elif diferenca <= 7:
+            elif diferenca <= limite_dias:
                 nova_classe = 'status-amarelo'
 
             db.session.commit()

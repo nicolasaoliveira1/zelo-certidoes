@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta
 from threading import Thread
 
-from app.models import Certidao, StatusEspecial
+from app.models import Certidao, StatusEspecial, get_a_vencer_dias
 from app.services.correlation import CorrelationContext
 
 
@@ -156,7 +156,7 @@ def status_payload_locked(batch_lock, batch_state):
 
 def calc_targets(start_certidao_id, extra_filter=None, scope='default'):
     hoje = date.today()
-    limite = hoje + timedelta(days=7)
+    limite = hoje + timedelta(days=get_a_vencer_dias())
 
     query = Certidao.query.order_by(Certidao.id)
 

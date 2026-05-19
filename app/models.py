@@ -67,9 +67,10 @@ class Certidao(db.Model):
             return 'cinza'
         hoje = date.today()
         diferenca_dias = (self.data_validade - hoje).days
+        limite_dias = get_a_vencer_dias()
         if diferenca_dias < 0:
             return 'vermelho'
-        elif diferenca_dias <= 7:
+        elif diferenca_dias <= limite_dias:
             return 'amarelo'
         else:
             return 'verde'
