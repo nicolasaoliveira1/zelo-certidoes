@@ -53,7 +53,7 @@
     {% endif %}
     {% endwith %}
 
-    <div class="card shadow-sm border-0 mb-5 bg-body-tertiary rounded-3">
+    <div class="card shadow-sm border-0 mb-3 bg-body-tertiary rounded-3">
         <div class="card-body p-4">
             <div class="d-flex flex-wrap gap-3 w-100 filter-container">
                 <div style="flex: 1 1 30%; min-width: 250px;">
@@ -95,11 +95,12 @@
                 <form action="{{ url_for('main.dashboard') }}" method="GET" class="mb-0" id="filtro-form">
                     <input type="hidden" name="estado" id="estado-hidden" value="{{ estado_filtro }}">
                     <input type="hidden" name="cidade" id="cidade-hidden" value="{{ cidade_filtro }}">
+                    <input type="hidden" name="ordem" id="ordem-hidden" value="{{ ordem }}">
 
-                    <div class="d-flex flex-wrap gap-4 justify-content-center">
+                    <div class="d-flex flex-wrap gap-2 justify-content-center">
                         <div class="filter-group" style="flex: 1 1 45%; min-width: 280px;">
                             <label class="form-label fw-bold text-secondary text-uppercase small mb-2">Status</label>
-                            <div class="d-flex flex-wrap gap-2">
+                            <div class="d-flex flex-wrap gap-0">
 
                                 <input type="checkbox" class="btn-check filter-trigger" id="status-todas" name="status"
                                     value="todas" {% if 'todas' in status_filtros %}checked{% endif %}>
@@ -156,7 +157,7 @@
                         <div class="filter-group" style="flex: 1 1 45%; min-width: 280px;">
                             <label class="form-label fw-bold text-secondary text-uppercase small mb-2">Tipo de
                                 Certidão</label>
-                            <div class="d-flex flex-wrap gap-2">
+                            <div class="d-flex flex-wrap gap-0">
 
                                 <input type="checkbox" class="btn-check filter-trigger" id="tipo-todas" name="tipo"
                                     value="todas" {% if 'todas' in tipo_filtros %}checked{% endif %}>
@@ -206,6 +207,18 @@
                     </div>
                 </form>
             </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-end align-items-center gap-2 mt-2 mb-2">
+        <label class="text-uppercase small text-muted mb-0" for="ordem-select">Ordenar</label>
+        <div class="order-select">
+            <select class="form-select order-select-input" id="ordem-select">
+                <option value="urgencia" {% if ordem == 'urgencia' %}selected{% endif %}>⚠️ Por urgência</option>
+                <option value="az" {% if ordem == 'az' %}selected{% endif %}>🔤 A–Z</option>
+                <option value="vencimento" {% if ordem == 'vencimento' %}selected{% endif %}>🗓 Vencimento mais próximo</option>
+            </select>
+            <i class="bi bi-chevron-down" aria-hidden="true"></i>
         </div>
     </div>
 
@@ -2151,6 +2164,9 @@
             const estadoHidden = document.getElementById('estado-hidden');
             const cidadeSelect = document.getElementById('filtro-cidade');
             const cidadeHidden = document.getElementById('cidade-hidden');
+            const ordemSelect = document.getElementById('ordem-select');
+            const ordemHidden = document.getElementById('ordem-hidden');
+            const ordemStorageKey = 'dashboardOrdem';
 
             const todasCheckbox = document.getElementById('status-todas');
             const statusCheckboxes = [
@@ -2178,9 +2194,30 @@
                     if (cidadeSelect && cidadeHidden) {
                         cidadeHidden.value = cidadeSelect.value;
                     }
+                    if (ordemSelect && ordemHidden) {
+                        ordemHidden.value = ordemSelect.value;
+                    }
                     setTimeout(() => {
                         formFiltro.submit();
                     }, 100);
+                }
+            }
+
+            function aplicarOrdenacaoSalva() {
+                if (!ordemSelect) return;
+
+                const ordemSalva = localStorage.getItem(ordemStorageKey);
+                if (ordemSalva && ordemSalva !== ordemSelect.value) {
+                    ordemSelect.value = ordemSalva;
+                    if (ordemHidden) {
+                        ordemHidden.value = ordemSalva;
+                    }
+                    autoSubmit();
+                    return;
+                }
+
+                if (!ordemSalva) {
+                    localStorage.setItem(ordemStorageKey, ordemSelect.value);
                 }
             }
 
@@ -2281,7 +2318,15 @@
                 });
             }
 
+            if (ordemSelect) {
+                ordemSelect.addEventListener('change', function () {
+                    localStorage.setItem(ordemStorageKey, ordemSelect.value);
+                    autoSubmit();
+                });
+            }
+
             atualizarContagensChips();
+            aplicarOrdenacaoSalva();
 
             window.addEventListener('focus', function () {
                 cleanupUiLocks({ keepLoading: true, keepBatchOverlays: true });
