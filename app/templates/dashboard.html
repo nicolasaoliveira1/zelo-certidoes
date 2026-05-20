@@ -96,56 +96,64 @@
                     <input type="hidden" name="estado" id="estado-hidden" value="{{ estado_filtro }}">
                     <input type="hidden" name="cidade" id="cidade-hidden" value="{{ cidade_filtro }}">
 
-                    <div class="d-flex flex-wrap gap-4">
-                        <div style="flex: 1 1 45%; min-width: 280px;">
+                    <div class="d-flex flex-wrap gap-4 justify-content-center">
+                        <div class="filter-group" style="flex: 1 1 45%; min-width: 280px;">
                             <label class="form-label fw-bold text-secondary text-uppercase small mb-2">Status</label>
                             <div class="d-flex flex-wrap gap-2">
 
                                 <input type="checkbox" class="btn-check filter-trigger" id="status-todas" name="status"
                                     value="todas" {% if 'todas' in status_filtros %}checked{% endif %}>
                                 <label class="filter-chip chip-gray" for="status-todas">
-                                    <i class="bi bi-grid-fill"></i> Todas
+                                    <i class="bi bi-grid-fill"></i>
+                                    <span class="chip-label">Todas <span class="chip-count" data-status="todas">0</span></span>
                                 </label>
 
                                 <input type="checkbox" class="btn-check filter-trigger" id="status-validas"
                                     name="status" value="validas" {% if 'validas' in status_filtros %}checked{% endif
                                     %}>
                                 <label class="filter-chip chip-green" for="status-validas">
-                                    <i class="bi bi-check-circle-fill"></i> Válidas
+                                    <i class="bi bi-check-circle-fill"></i>
+                                    <span class="chip-label">Válidas <span class="chip-count" data-status="validas">0</span></span>
                                 </label>
 
                                 <input type="checkbox" class="btn-check filter-trigger" id="status-a-vencer"
                                     name="status" value="a_vencer" {% if 'a_vencer' in status_filtros %}checked{% endif
                                     %}>
                                 <label class="filter-chip chip-yellow" for="status-a-vencer">
-                                    <i class="bi bi-exclamation-triangle-fill"></i> A Vencer
+                                    <i class="bi bi-exclamation-triangle-fill"></i>
+                                    <span class="chip-label">A Vencer <span class="chip-count" data-status="a_vencer">0</span></span>
                                 </label>
 
                                 <input type="checkbox" class="btn-check filter-trigger" id="status-vencidas"
                                     name="status" value="vencidas" {% if 'vencidas' in status_filtros %}checked{% endif
                                     %}>
                                 <label class="filter-chip chip-red" for="status-vencidas">
-                                    <i class="bi bi-x-circle-fill"></i> Vencidas
+                                    <i class="bi bi-x-circle-fill"></i>
+                                    <span class="chip-label">Vencidas <span class="chip-count" data-status="vencidas">0</span></span>
                                 </label>
 
                                 <input type="checkbox" class="btn-check filter-trigger" id="status-pendentes"
                                     name="status" value="pendentes" {% if 'pendentes' in status_filtros %}checked{%
                                     endif %}>
                                 <label class="filter-chip chip-red-outline" for="status-pendentes">
-                                    <i class="bi bi-exclamation-circle-fill"></i> Pendentes
+                                    <i class="bi bi-exclamation-circle-fill"></i>
+                                    <span class="chip-label">Pendentes <span class="chip-count" data-status="pendentes">0</span></span>
                                 </label>
 
                                 <input type="checkbox" class="btn-check filter-trigger" id="status-nao-definida"
                                     name="status" value="nao_definida" {% if 'nao_definida' in status_filtros
                                     %}checked{% endif %}>
                                 <label class="filter-chip chip-nao-definida" for="status-nao-definida">
-                                    <i class="bi bi-question-circle-fill"></i> Não Definida
+                                    <i class="bi bi-question-circle-fill"></i>
+                                    <span class="chip-label">Não Definida <span class="chip-count" data-status="nao_definida">0</span></span>
                                 </label>
 
                             </div>
                         </div>
 
-                        <div style="flex: 1 1 45%; min-width: 280px;">
+                        <div class="filter-divider" aria-hidden="true"></div>
+
+                        <div class="filter-group" style="flex: 1 1 45%; min-width: 280px;">
                             <label class="form-label fw-bold text-secondary text-uppercase small mb-2">Tipo de
                                 Certidão</label>
                             <div class="d-flex flex-wrap gap-2">
@@ -153,38 +161,44 @@
                                 <input type="checkbox" class="btn-check filter-trigger" id="tipo-todas" name="tipo"
                                     value="todas" {% if 'todas' in tipo_filtros %}checked{% endif %}>
                                 <label class="filter-chip chip-gray" for="tipo-todas">
-                                    <i class="bi bi-grid-fill"></i> Todas
+                                    <i class="bi bi-grid-fill"></i>
+                                    <span class="chip-label">Todas <span class="chip-count" data-type="todas">0</span></span>
                                 </label>
 
                                 <input type="checkbox" class="btn-check filter-trigger" id="tipo-federal" name="tipo"
                                     value="federal" {% if 'federal' in tipo_filtros %}checked{% endif %}>
                                 <label class="filter-chip chip-federal" for="tipo-federal">
-                                    <i class="bi bi-bank"></i> Federal
+                                    <i class="bi bi-bank"></i>
+                                    <span class="chip-label">Federal <span class="chip-count" data-type="federal">0</span></span>
                                 </label>
 
                                 <input type="checkbox" class="btn-check filter-trigger" id="tipo-fgts" name="tipo"
                                     value="fgts" {% if 'fgts' in tipo_filtros %}checked{% endif %}>
                                 <label class="filter-chip chip-fgts" for="tipo-fgts">
-                                    <i class="bi bi-person-badge"></i> FGTS
+                                    <i class="bi bi-person-badge"></i>
+                                    <span class="chip-label">FGTS <span class="chip-count" data-type="fgts">0</span></span>
                                 </label>
 
                                 <input type="checkbox" class="btn-check filter-trigger" id="tipo-estadual" name="tipo"
                                     value="estadual" {% if 'estadual' in tipo_filtros %}checked{% endif %}>
                                 <label class="filter-chip chip-estadual" for="tipo-estadual">
-                                    <i class="bi bi-map"></i> Estadual
+                                    <i class="bi bi-map"></i>
+                                    <span class="chip-label">Estadual <span class="chip-count" data-type="estadual">0</span></span>
                                 </label>
 
                                 <input type="checkbox" class="btn-check filter-trigger" id="tipo-municipal" name="tipo"
                                     value="municipal" {% if 'municipal' in tipo_filtros %}checked{% endif %}>
                                 <label class="filter-chip chip-municipal" for="tipo-municipal">
-                                    <i class="bi bi-building"></i> Municipal
+                                    <i class="bi bi-building"></i>
+                                    <span class="chip-label">Municipal <span class="chip-count" data-type="municipal">0</span></span>
                                 </label>
 
                                 <input type="checkbox" class="btn-check filter-trigger" id="tipo-trabalhista"
                                     name="tipo" value="trabalhista" {% if 'trabalhista' in tipo_filtros %}checked{%
                                     endif %}>
                                 <label class="filter-chip chip-trabalhista" for="tipo-trabalhista">
-                                    <i class="bi bi-briefcase"></i> Trabalhista
+                                    <i class="bi bi-briefcase"></i>
+                                    <span class="chip-label">Trabalhista <span class="chip-count" data-type="trabalhista">0</span></span>
                                 </label>
 
                             </div>
@@ -196,23 +210,80 @@
     </div>
 
     <div id="lista-empresas">
+        {% set status_resultados = namespace(total=0) %}
         {% for empresa in empresas %}
 
         {% set certidoes_filtradas = [] %}
+        {% set counts = namespace(total=0, validas=0, a_vencer=0, vencidas=0, pendentes=0, nao_definida=0) %}
+        {% set counts_tipo = namespace(total=0, federal=0, fgts=0, estadual=0, municipal=0, trabalhista=0) %}
+
         {% for c in empresa.certidoes.all() %}
-        {% set status_calculado = '' %}
-        {% if c.status_especial and c.status_especial.value == 'Pendente' %}{% set status_calculado = 'pendentes' %}
-        {% elif not c.data_validade %}{% set status_calculado = 'nao_definida' %}
-        {% elif c.data_validade < hoje %}{% set status_calculado='vencidas' %} {% elif (c.data_validade - hoje).days <= limite_dias
-            %}{% set status_calculado='a_vencer' %} {% else %}{% set status_calculado='validas' %} {% endif %} {% set
-            status_ok=('todas' in status_filtros or status_calculado in status_filtros) %} {% set tipo_ok=('todas' in
-            tipo_filtros or c.tipo.name | lower in tipo_filtros) %} {% if status_ok and tipo_ok %} {% set
-            _=certidoes_filtradas.append(c) %} {% endif %} {% endfor %} {% set certidoes_filtradas=certidoes_filtradas |
-            sort(attribute='ordem_exibicao' ) %} {# SÓ MOSTRA O CARD SE HOUVER CERTIDÕES NO FILTRO #} {% if
-            certidoes_filtradas | length> 0 %}
+            {% set status_calculado = '' %}
+            {% if c.status_especial and c.status_especial.value == 'Pendente' %}
+                {% set status_calculado = 'pendentes' %}
+            {% elif not c.data_validade %}
+                {% set status_calculado = 'nao_definida' %}
+            {% elif c.data_validade < hoje %}
+                {% set status_calculado = 'vencidas' %}
+            {% elif (c.data_validade - hoje).days <= limite_dias %}
+                {% set status_calculado = 'a_vencer' %}
+            {% else %}
+                {% set status_calculado = 'validas' %}
+            {% endif %}
+
+            {% set status_ok = ('todas' in status_filtros or status_calculado in status_filtros) %}
+            {% set tipo_chave = c.tipo.name | lower %}
+            {% set tipo_ok = ('todas' in tipo_filtros or tipo_chave in tipo_filtros) %}
+
+            {% if tipo_ok %}
+                {% set counts.total = counts.total + 1 %}
+                {% if status_calculado == 'validas' %}
+                    {% set counts.validas = counts.validas + 1 %}
+                {% elif status_calculado == 'a_vencer' %}
+                    {% set counts.a_vencer = counts.a_vencer + 1 %}
+                {% elif status_calculado == 'vencidas' %}
+                    {% set counts.vencidas = counts.vencidas + 1 %}
+                {% elif status_calculado == 'pendentes' %}
+                    {% set counts.pendentes = counts.pendentes + 1 %}
+                {% elif status_calculado == 'nao_definida' %}
+                    {% set counts.nao_definida = counts.nao_definida + 1 %}
+                {% endif %}
+            {% endif %}
+
+            {% if status_ok %}
+                {% set counts_tipo.total = counts_tipo.total + 1 %}
+                {% if tipo_chave == 'federal' %}
+                    {% set counts_tipo.federal = counts_tipo.federal + 1 %}
+                {% elif tipo_chave == 'fgts' %}
+                    {% set counts_tipo.fgts = counts_tipo.fgts + 1 %}
+                {% elif tipo_chave == 'estadual' %}
+                    {% set counts_tipo.estadual = counts_tipo.estadual + 1 %}
+                {% elif tipo_chave == 'municipal' %}
+                    {% set counts_tipo.municipal = counts_tipo.municipal + 1 %}
+                {% elif tipo_chave == 'trabalhista' %}
+                    {% set counts_tipo.trabalhista = counts_tipo.trabalhista + 1 %}
+                {% endif %}
+            {% endif %}
+
+            {% if status_ok and tipo_ok %}
+                {% set _ = certidoes_filtradas.append(c) %}
+            {% endif %}
+        {% endfor %}
+
+        {% set certidoes_filtradas = certidoes_filtradas | sort(attribute='ordem_exibicao') %}
+        {# SÓ MOSTRA O CARD SE HOUVER CERTIDÕES NO FILTRO #}
+        {% if certidoes_filtradas | length > 0 %}
+            {% set status_resultados.total = status_resultados.total + 1 %}
 
             <div class="card mb-4 shadow-sm border-0 company-card" data-nome-empresa="{{ empresa.nome }}"
-                data-cidade-empresa="{{ empresa.cidade }}" data-estado-empresa="{{ empresa.estado }}">
+                data-cidade-empresa="{{ empresa.cidade }}" data-estado-empresa="{{ empresa.estado }}"
+                data-search-hidden="0"
+                data-count-total="{{ counts.total }}" data-count-validas="{{ counts.validas }}"
+                data-count-a-vencer="{{ counts.a_vencer }}" data-count-vencidas="{{ counts.vencidas }}"
+                data-count-pendentes="{{ counts.pendentes }}" data-count-nao-definida="{{ counts.nao_definida }}"
+                data-count-tipo-total="{{ counts_tipo.total }}" data-count-tipo-federal="{{ counts_tipo.federal }}"
+                data-count-tipo-fgts="{{ counts_tipo.fgts }}" data-count-tipo-estadual="{{ counts_tipo.estadual }}"
+                data-count-tipo-municipal="{{ counts_tipo.municipal }}" data-count-tipo-trabalhista="{{ counts_tipo.trabalhista }}">
 
                 <div
                     class="card-header bg-white border-bottom py-3 d-flex flex-wrap justify-content-between align-items-center">
@@ -315,15 +386,27 @@
                 </div>
             </div>
 
-            {% endif %} {# Fim do if certidoes_filtradas #}
+        {% else %}
+            <div class="company-card status-hidden" data-nome-empresa="{{ empresa.nome }}"
+                data-cidade-empresa="{{ empresa.cidade }}" data-estado-empresa="{{ empresa.estado }}"
+                data-search-hidden="0"
+                data-count-total="{{ counts.total }}" data-count-validas="{{ counts.validas }}"
+                data-count-a-vencer="{{ counts.a_vencer }}" data-count-vencidas="{{ counts.vencidas }}"
+                data-count-pendentes="{{ counts.pendentes }}" data-count-nao-definida="{{ counts.nao_definida }}"
+                data-count-tipo-total="{{ counts_tipo.total }}" data-count-tipo-federal="{{ counts_tipo.federal }}"
+                data-count-tipo-fgts="{{ counts_tipo.fgts }}" data-count-tipo-estadual="{{ counts_tipo.estadual }}"
+                data-count-tipo-municipal="{{ counts_tipo.municipal }}" data-count-tipo-trabalhista="{{ counts_tipo.trabalhista }}"></div>
+        {% endif %} {# Fim do if certidoes_filtradas #}
 
-            {% else %}
-            <div class="alert alert-secondary text-center py-5">
-                <i class="bi bi-inbox fs-1 mb-3 d-block"></i>
-                <h4>Nenhuma empresa encontrada</h4>
-                <p>Tente ajustar os filtros acima.</p>
-            </div>
-            {% endfor %}
+        {% endfor %}
+
+        {% if empresas | length == 0 or status_resultados.total == 0 %}
+        <div class="alert alert-secondary text-center py-5">
+            <i class="bi bi-inbox fs-1 mb-3 d-block"></i>
+            <h4>Nenhuma empresa encontrada</h4>
+            <p>Tente ajustar os filtros acima.</p>
+        </div>
+        {% endif %}
     </div>
 
     <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true"
@@ -2050,14 +2133,16 @@
                             const nomeEmpresa = card.dataset.nomeEmpresa.toLowerCase();
 
                             if (nomeEmpresa.includes(termoBusca)) {
-                                card.style.display = '';
-                                card.classList.remove('d-none');
+                                card.classList.remove('search-hidden');
+                                card.dataset.searchHidden = '0';
                             } else {
-                                card.style.display = 'none';
-                                card.classList.add('d-none');
+                                card.classList.add('search-hidden');
+                                card.dataset.searchHidden = '1';
                             }
                         }
                     });
+
+                    atualizarContagensChips();
                 });
             }
 
@@ -2097,6 +2182,60 @@
                         formFiltro.submit();
                     }, 100);
                 }
+            }
+
+            function atualizarContagensChips() {
+                const statusChips = document.querySelectorAll('.chip-count[data-status]');
+                const typeChips = document.querySelectorAll('.chip-count[data-type]');
+                const statusTotals = {
+                    todas: 0,
+                    validas: 0,
+                    a_vencer: 0,
+                    vencidas: 0,
+                    pendentes: 0,
+                    nao_definida: 0,
+                };
+                const typeTotals = {
+                    todas: 0,
+                    federal: 0,
+                    fgts: 0,
+                    estadual: 0,
+                    municipal: 0,
+                    trabalhista: 0,
+                };
+
+                const cards = document.querySelectorAll('.company-card');
+                cards.forEach(card => {
+                    if (card.dataset.searchHidden === '1') return;
+
+                    statusTotals.todas += Number(card.dataset.countTotal || 0);
+                    statusTotals.validas += Number(card.dataset.countValidas || 0);
+                    statusTotals.a_vencer += Number(card.dataset.countAVencer || 0);
+                    statusTotals.vencidas += Number(card.dataset.countVencidas || 0);
+                    statusTotals.pendentes += Number(card.dataset.countPendentes || 0);
+                    statusTotals.nao_definida += Number(card.dataset.countNaoDefinida || 0);
+
+                    typeTotals.todas += Number(card.dataset.countTipoTotal || 0);
+                    typeTotals.federal += Number(card.dataset.countTipoFederal || 0);
+                    typeTotals.fgts += Number(card.dataset.countTipoFgts || 0);
+                    typeTotals.estadual += Number(card.dataset.countTipoEstadual || 0);
+                    typeTotals.municipal += Number(card.dataset.countTipoMunicipal || 0);
+                    typeTotals.trabalhista += Number(card.dataset.countTipoTrabalhista || 0);
+                });
+
+                statusChips.forEach(chip => {
+                    const status = chip.dataset.status;
+                    if (status && Object.prototype.hasOwnProperty.call(statusTotals, status)) {
+                        chip.textContent = statusTotals[status];
+                    }
+                });
+
+                typeChips.forEach(chip => {
+                    const tipo = chip.dataset.type;
+                    if (tipo && Object.prototype.hasOwnProperty.call(typeTotals, tipo)) {
+                        chip.textContent = typeTotals[tipo];
+                    }
+                });
             }
 
             function setupChipGroup(todasCb, outrasCbs) {
@@ -2141,6 +2280,8 @@
                     autoSubmit();
                 });
             }
+
+            atualizarContagensChips();
 
             window.addEventListener('focus', function () {
                 cleanupUiLocks({ keepLoading: true, keepBatchOverlays: true });
