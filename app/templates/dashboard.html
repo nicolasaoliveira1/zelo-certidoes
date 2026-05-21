@@ -998,6 +998,10 @@
             let rsBatchTipoCert = null;
             let rsBatchScope = 'default';
             let caminhoArquivoParaModal = null;
+            let federalMonitorAtivo = false;
+            let federalTabRef = null;
+            let federalFinalize = null;
+            let federalMonitorController = null;
             const loadingOverlay = document.getElementById('loading-overlay');
             const loadingDetalhes = document.getElementById('loading-detalhes');
             const statusesComModal = new Set(['success_file_saved', 'window_closed_no_file', 'estadual_rs_positiva', 'municipal_pdf_positiva']);
@@ -1105,6 +1109,17 @@
                     document.body.style.removeProperty('padding-right');
                     document.body.style.removeProperty('overflow');
                 }
+            }
+
+            function ensureModalBackdrop() {
+                const hasBackdrop = document.querySelector('.modal-backdrop');
+                if (!hasBackdrop) {
+                    const backdrop = document.createElement('div');
+                    backdrop.className = 'modal-backdrop fade show';
+                    document.body.appendChild(backdrop);
+                }
+                document.body.classList.add('modal-open');
+                document.body.style.overflow = 'hidden';
             }
 
             function atualizarInfoArquivoModal(mensagemArquivo) {
@@ -1277,12 +1292,12 @@
                     event.preventDefault();
                     linhaAtualTabela = btn.closest('tr');
 
-                    urlParaAbrir = btn.dataset.url;
-                    tipoParaAbrir = btn.dataset.tipo;
-                    idParaMonitorar = btn.dataset.id;
+                    urlParaAbrir = (btn.dataset.url || '').trim();
+                    tipoParaAbrir = (btn.dataset.tipo || '').trim();
+                    idParaMonitorar = (btn.dataset.id || '').trim();
                     const cnpj = btn.dataset.cnpj;
 
-                    if (urlParaAbrir === '#') {
+                    if (!urlParaAbrir || urlParaAbrir === '#' || urlParaAbrir === 'undefined' || urlParaAbrir === 'null' || urlParaAbrir === 'none') {
                         showToast('URL não cadastrada.', 'error');
                         return;
                     }
@@ -1304,16 +1319,28 @@
             if (btnInfoModalOK) {
                 btnInfoModalOK.addEventListener('click', function () {
                     if (infoModal) infoModal.hide();
+                    if (!urlParaAbrir || urlParaAbrir === '#' || urlParaAbrir === 'undefined' || urlParaAbrir === 'null' || urlParaAbrir === 'none') {
+                        showToast('URL não cadastrada.', 'error');
+                        hideLoading();
+                        return;
+                    }
+                    if (!/^https?:/i.test(urlParaAbrir)) {
+                        showToast('URL inválida para abrir o site.', 'error');
+                        hideLoading();
+                        return;
+                    }
+                    if (!idParaMonitorar) {
+                        showToast('Certidão inválida para monitoramento.', 'error');
+                        hideLoading();
+                        return;
+                    }
                     if (urlParaAbrir) {
                         const novaAba = window.open(urlParaAbrir, '_blank', 'noopener');
                         if (novaAba) {
                             novaAba.opener = null;
                         }
 
-                        if (!novaAba) {
-                            if (tipoParaAbrir === 'FEDERAL') {
-                                hideLoading();
-                            }
+                        if (!novaAba && tipoParaAbrir !== 'FEDERAL') {
                             showToast('Não foi possível abrir o site. Verifique se o bloqueador de pop-up está ativo.', 'error');
                             return;
                         }
@@ -1321,9 +1348,74 @@
                         if (tipoParaAbrir === 'FEDERAL') {
                             showLoading('', tipoParaAbrir || '');
                             let arquivoSalvo = false;
+                            let federalFinalizado = false;
+                            let federalTimer = null;
+                            const monitorController = new AbortController();
                             caminhoArquivoParaModal = null;
+                            federalMonitorAtivo = true;
+                            federalTabRef = novaAba || null;
+                            federalMonitorController = monitorController;
 
-                            fetch(`/certidao/monitorar_download_federal/${idParaMonitorar}`)
+                            const finalizarFederal = () => {
+                                if (federalFinalizado) return;
+                                federalFinalizado = true;
+                                if (federalTimer) {
+                                    clearInterval(federalTimer);
+                                }
+                                federalMonitorAtivo = false;
+                                federalTabRef = null;
+                                federalFinalize = null;
+                                federalMonitorController = null;
+
+                                if (arquivoSalvo) {
+                                    if (federalTabRef) {
+                                        try {
+                                            if (!federalTabRef.closed) federalTabRef.close();
+                                        } catch (e) {
+                                            // ignore close errors
+                                        }
+                                    }
+                                    let dataBanco = null;
+                                    let dataFormatada = null;
+
+                                    if (caminhoArquivoParaModal && caminhoArquivoParaModal.data_validade) {
+                                        dataBanco = caminhoArquivoParaModal.data_validade;
+                                        dataFormatada = caminhoArquivoParaModal.data_validade_formatada || null;
+                                    } else {
+                                        const hoje = new Date();
+                                        const validade = new Date(hoje);
+                                        validade.setDate(hoje.getDate() + 180);
+                                        dataBanco = validade.toISOString().split('T')[0];
+                                        dataFormatada = `${validade.getDate().toString().padStart(2, '0')}/${(validade.getMonth() + 1).toString().padStart(2, '0')}/${validade.getFullYear()}`;
+                                    }
+
+                                    if (displayData && dataFormatada) displayData.textContent = dataFormatada;
+                                    if (displayTipo) displayTipo.textContent = "FEDERAL";
+                                    atualizarInfoArquivoModal(caminhoArquivoParaModal && caminhoArquivoParaModal.mensagem ? caminhoArquivoParaModal.mensagem : caminhoArquivoParaModal);
+                                    atualizarBotaoVisualizar(caminhoArquivoParaModal && caminhoArquivoParaModal.visualizar_token);
+                                    dadosParaSalvar = { certidao_id: idParaMonitorar, nova_validade: dataBanco };
+                                    if (confirmModal) {
+                                        confirmModal.show();
+                                        ensureModalBackdrop();
+                                    } else {
+                                        hideLoading();
+                                    }
+                                    return;
+                                }
+
+                                if (displayTipoPendente) displayTipoPendente.textContent = "FEDERAL";
+                                certidaoIdPendente = idParaMonitorar;
+                                if (pendenteModal) {
+                                    pendenteModal.show();
+                                    ensureModalBackdrop();
+                                } else {
+                                    hideLoading();
+                                }
+                            };
+
+                            fetch(`/certidao/monitorar_download_federal/${idParaMonitorar}`, {
+                                signal: monitorController.signal
+                            })
                                 .then(response => response.json())
                                 .then(data => {
                                     if (data.status === 'success') {
@@ -1333,47 +1425,43 @@
                                         if (novaAba && !novaAba.closed) {
                                             novaAba.close();
                                         }
+                                        finalizarFederal();
+                                        return;
                                     }
+
+                                    showToast(
+                                        appendRequestId(
+                                            data.message || data.mensagem || 'Monitoramento federal não encontrou arquivo.',
+                                            data.request_id
+                                        ),
+                                        'error'
+                                    );
+                                    finalizarFederal();
+                                })
+                                .catch((err) => {
+                                    if (err && err.name === 'AbortError') {
+                                        return;
+                                    }
+                                    showToast('Erro ao monitorar download federal.', 'error');
+                                    finalizarFederal();
                                 });
 
+                            federalFinalize = finalizarFederal;
+
                             if (novaAba) {
-                                const timer = setInterval(function () {
-                                    if (novaAba.closed) {
-                                        clearInterval(timer);
-                                        if (arquivoSalvo) {
-                                            let dataBanco = null;
-                                            let dataFormatada = null;
+                                federalTimer = setInterval(function () {
+                                    let fechado = false;
+                                    try {
+                                        fechado = novaAba.closed;
+                                    } catch (e) {
+                                        fechado = true;
+                                    }
 
-                                            if (caminhoArquivoParaModal && caminhoArquivoParaModal.data_validade) {
-                                                dataBanco = caminhoArquivoParaModal.data_validade;
-                                                dataFormatada = caminhoArquivoParaModal.data_validade_formatada || null;
-                                            } else {
-                                                const hoje = new Date();
-                                                const validade = new Date(hoje);
-                                                validade.setDate(hoje.getDate() + 180);
-                                                dataBanco = validade.toISOString().split('T')[0];
-                                                dataFormatada = `${validade.getDate().toString().padStart(2, '0')}/${(validade.getMonth() + 1).toString().padStart(2, '0')}/${validade.getFullYear()}`;
-                                            }
-
-                                            if (displayData && dataFormatada) displayData.textContent = dataFormatada;
-                                            if (displayTipo) displayTipo.textContent = "FEDERAL";
-                                            atualizarInfoArquivoModal(caminhoArquivoParaModal && caminhoArquivoParaModal.mensagem ? caminhoArquivoParaModal.mensagem : caminhoArquivoParaModal);
-                                            atualizarBotaoVisualizar(caminhoArquivoParaModal && caminhoArquivoParaModal.visualizar_token);
-                                            dadosParaSalvar = { certidao_id: idParaMonitorar, nova_validade: dataBanco };
-                                            if (confirmModal) {
-                                                confirmModal.show();
-                                            } else {
-                                                hideLoading();
-                                            }
-                                        } else {
-                                            if (displayTipoPendente) displayTipoPendente.textContent = "FEDERAL";
-                                            certidaoIdPendente = idParaMonitorar;
-                                            if (pendenteModal) {
-                                                pendenteModal.show();
-                                            } else {
-                                                hideLoading();
-                                            }
-                                        }
+                                    if (fechado) {
+                                        fetch('/certidao/monitorar_download_federal/stop', { method: 'POST' })
+                                            .catch(() => null);
+                                        monitorController.abort();
+                                        finalizarFederal();
                                     }
                                 }, 1000);
                             }
@@ -1382,15 +1470,39 @@
                 });
             }
 
+            window.addEventListener('focus', function () {
+                if (!federalMonitorAtivo) return;
+
+                let fechado = false;
+                try {
+                    fechado = !federalTabRef || federalTabRef.closed;
+                } catch (e) {
+                    fechado = true;
+                }
+
+                if (fechado) {
+                    fetch('/certidao/monitorar_download_federal/stop', { method: 'POST' })
+                        .catch(() => null);
+                    if (federalMonitorController) {
+                        federalMonitorController.abort();
+                    }
+                    if (federalFinalize) {
+                        federalFinalize();
+                    }
+                }
+            });
+
             if (confirmModalElement) {
                 confirmModalElement.addEventListener('shown.bs.modal', function () {
                     hideLoading();
+                    ensureModalBackdrop();
                 });
             }
 
             if (pendenteModalElement) {
                 pendenteModalElement.addEventListener('shown.bs.modal', function () {
                     hideLoading();
+                    ensureModalBackdrop();
                 });
             }
 
