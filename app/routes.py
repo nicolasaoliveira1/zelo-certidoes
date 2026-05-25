@@ -1153,6 +1153,28 @@ def _emitir_fgts_certidao(certidao_id, driver=None, execution_id=None):
 
             return False, False, msg_impedimento
 
+        if contexto.get('pdf_classificacao') == 'positiva':
+            msg_positiva = contexto.get('pdf_msg') or 'Certidão FGTS detectada como POSITIVA e marcada como PENDENTE.'
+
+            with FGTS_BATCH_LOCK:
+                FGTS_BATCH_STATE['last_completed'] = {
+                    'certidao_id': certidao.id,
+                    'data_formatada': 'PENDENTE',
+                    'nova_classe': 'status-vermelho'
+                }
+                batch_engine.append_batch_message(
+                    FGTS_BATCH_STATE,
+                    f"FGTS ID={certidao.id} positiva: marcada como pendente.",
+                    level='warning',
+                    certidao_id=certidao.id,
+                )
+
+            return True, False, msg_positiva
+
+        if contexto.get('pdf_classificacao') == 'erro':
+            msg_pdf = contexto.get('pdf_msg') or 'Erro ao tratar certidão FGTS positiva.'
+            return False, True, msg_pdf
+
         if contexto.get('arquivo_salvo_msg'):
             nova_data = calcular_validade_padrao(certidao, contexto.get('data_encontrada'))
             if nova_data:
@@ -1701,6 +1723,39 @@ def _classificar_status_certidao_pdf(caminho_pdf, origem_log='PDF'):
         return 'negativa'
 
     return 'desconhecida'
+
+
+def _classificar_e_tratar_pdf_positivo(certidao, caminho_pdf, origem_log='PDF', tipo_label=None):
+    classificacao = _classificar_status_certidao_pdf(caminho_pdf, origem_log=origem_log)
+    if classificacao != 'positiva':
+        return classificacao, None
+
+    erro_remocao = None
+    try:
+        if caminho_pdf and os.path.exists(caminho_pdf):
+            os.remove(caminho_pdf)
+    except Exception as exc_remove:
+        erro_remocao = str(exc_remove)
+
+    tipo_label_final = (tipo_label or (certidao.tipo.value if certidao else '') or 'CERTIDAO').strip()
+    try:
+        if certidao:
+            certidao.caminho_arquivo = None
+            certidao.status_especial = StatusEspecial.PENDENTE
+            certidao.data_validade = None
+            db.session.commit()
+    except Exception as e_db:
+        db.session.rollback()
+        msg = (
+            f'Certidão {tipo_label_final} POSITIVA detectada, '
+            'mas houve erro ao marcar como PENDENTE no banco.'
+        )
+        return 'erro', msg
+
+    msg = f'Certidão {tipo_label_final} detectada como POSITIVA. Arquivo removido e certidão marcada como PENDENTE.'
+    if erro_remocao:
+        msg += f' Não foi possível remover o arquivo automaticamente: {erro_remocao}'
+    return 'positiva', msg
 
 
 def _classificar_certidao_estadual_rs(caminho_pdf):
@@ -2600,6 +2655,17 @@ def _automatizar_fgts(contexto, driver, wait, certidao, detectar_impedimento=Fal
                 except Exception as e_db:
                     db.session.rollback()
                     print(f"[FGTS] Aviso: não foi possível salvar caminho no banco: {e_db}")
+                classificacao_pdf, msg_pdf = _classificar_e_tratar_pdf_positivo(
+                    certidao,
+                    msg,
+                    origem_log='FGTS',
+                    tipo_label=certidao.tipo.value,
+                )
+                if classificacao_pdf in {'positiva', 'erro'}:
+                    contexto['pdf_classificacao'] = classificacao_pdf
+                    contexto['pdf_msg'] = msg_pdf
+                    contexto['arquivo_salvo_msg'] = None
+                    contexto['data_encontrada'] = None
         except Exception as e_pdf:
             print(f"[FGTS] Erro ao gerar PDF automaticamente: {e_pdf}")
     except Exception as e:
@@ -3006,6 +3072,8 @@ def baixar_certidao(certidao_id):
     rs_estadual_msg = None
     municipal_pdf_classificacao = None
     municipal_pdf_msg = None
+    certidao_pdf_classificacao = None
+    certidao_pdf_msg = None
 
     # contexto compartilhado com helpers de steps
     contexto = {
@@ -3309,6 +3377,25 @@ def baixar_certidao(certidao_id):
                                         )
                                         if erro_remocao:
                                             municipal_pdf_msg += f' Não foi possível remover o arquivo automaticamente: {erro_remocao}'
+
+                            if (
+                                tipo_certidao_chave not in {'MUNICIPAL', 'FEDERAL'}
+                                and not (tipo_certidao_chave == 'ESTADUAL' and estado_emp == 'RS')
+                            ):
+                                origem_pdf = (
+                                    f"ESTADUAL-{estado_emp}"
+                                    if tipo_certidao_chave == 'ESTADUAL' and estado_emp
+                                    else tipo_certidao_chave
+                                )
+                                classificacao_pdf, msg_pdf = _classificar_e_tratar_pdf_positivo(
+                                    certidao,
+                                    msg,
+                                    origem_log=origem_pdf,
+                                    tipo_label=certidao.tipo.value,
+                                )
+                                if classificacao_pdf in {'positiva', 'erro'}:
+                                    certidao_pdf_classificacao = classificacao_pdf
+                                    certidao_pdf_msg = msg_pdf
                             try:
                                 try:
                                     janelas_abertas = list(driver.window_handles)
@@ -3394,6 +3481,16 @@ def baixar_certidao(certidao_id):
 
     if municipal_pdf_classificacao == 'erro':
         return _json_error(municipal_pdf_msg or 'Erro ao tratar certidão municipal positiva.', 500)
+
+    if certidao_pdf_classificacao == 'positiva':
+        response_data['status'] = 'certidao_pdf_positiva'
+        response_data['message'] = certidao_pdf_msg or 'Certidão POSITIVA detectada e marcada como PENDENTE.'
+        response_data['certidao_id'] = certidao_id
+        response_data['tipo_certidao'] = nome_certidao_arquivo
+        return jsonify(response_data)
+
+    if certidao_pdf_classificacao == 'erro':
+        return _json_error(certidao_pdf_msg or 'Erro ao tratar certidão positiva.', 500)
 
     if arquivo_salvo_msg:
         response_data['status'] = 'success_file_saved'
