@@ -460,7 +460,7 @@
                 <div class="modal-body">
                     <p class="mb-1" id="displayArquivoInfo" style="display: none;"></p>
                     <p class="mb-3" id="displayEmpresaInfo" style="display: none;"></p>
-                    <p class="mb-2">Nova validade para <strong id="displayTipoCertidao"
+                    <p class="mb-2">Nova validade para CERTIDÃO <strong id="displayTipoCertidao"
                             class="text-uppercase">---</strong>:</p>
                     <h2 class="text-center text-primary" id="displayDataEncontrada">--/--/----</h2>
                     <p class="text-muted text-center mt-2 mb-0">Salvar esta data no banco?</p>
@@ -480,12 +480,12 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title text-warning">Nenhum arquivo baixado</h5>
+                    <h5 class="modal-title">Nenhum arquivo baixado</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p>A automação terminou sem salvar nenhum PDF para a certidão <strong
-                            id="displayTipoPendente">---</strong>.</p>
+                    <p>A automação terminou sem salvar nenhum PDF para a CERTIDAO <strong
+                            id="displayTipoPendente">---</strong> da empresa: <strong id="displayEmpresaPendente">---</strong>.</p>
                     <p class="fw-bold text-center">Deseja marcar esta certidão como <span
                             class="text-danger">PENDENTE</span>?</p>
                 </div>
@@ -963,6 +963,7 @@
             const displayArquivoInfo = document.getElementById('displayArquivoInfo');
             const displayEmpresaInfo = document.getElementById('displayEmpresaInfo');
             const displayTipoPendente = document.getElementById('displayTipoPendente');
+            const displayEmpresaPendente = document.getElementById('displayEmpresaPendente');
             const btnSalvar = document.getElementById('btnConfirmarSalvar');
             const btnConfirmarPendente = document.getElementById('btnConfirmarPendente');
             const btnVisualizarPdf = document.getElementById('btnVisualizarPdf');
@@ -1186,6 +1187,24 @@
                 }
             }
 
+            function atualizarInfoPendenteModal(tipoCertidao) {
+                if (displayTipoPendente) {
+                    displayTipoPendente.textContent = tipoCertidao || '---';
+                }
+
+                if (!displayEmpresaPendente) return;
+
+                let empresaNome = '';
+                if (linhaAtualTabela) {
+                    const card = linhaAtualTabela.closest('.company-card');
+                    if (card && card.dataset.nomeEmpresa) {
+                        empresaNome = card.dataset.nomeEmpresa;
+                    }
+                }
+
+                displayEmpresaPendente.textContent = empresaNome || '---';
+            }
+
 
             function atualizarLinhaUI(linha, classeStatusAntiga, novoTexto) {
                 const badge = linha.querySelector('.badge');
@@ -1236,7 +1255,7 @@
 
                 if (data.status === 'window_closed_no_file') {
                     limparInfoArquivoModal();
-                    if (displayTipoPendente) displayTipoPendente.textContent = data.tipo_certidao;
+                    atualizarInfoPendenteModal(data.tipo_certidao);
                     certidaoIdPendente = data.certidao_id;
                     if (pendenteModal) {
                         pendenteModal.show();
@@ -1334,11 +1353,10 @@
                         hideLoading();
                         return;
                     }
+                    
+                    let novaAba = null;
                     if (urlParaAbrir) {
-                        const novaAba = window.open(urlParaAbrir, '_blank', 'noopener');
-                        if (novaAba) {
-                            novaAba.opener = null;
-                        }
+                        novaAba = window.open(urlParaAbrir, '_blank');
 
                         if (!novaAba && tipoParaAbrir !== 'FEDERAL') {
                             showToast('Não foi possível abrir o site. Verifique se o bloqueador de pop-up está ativo.', 'error');
@@ -1362,19 +1380,31 @@
                                 if (federalTimer) {
                                     clearInterval(federalTimer);
                                 }
+
+                                const abaParaFechar = federalTabRef || novaAba || null;
+
                                 federalMonitorAtivo = false;
-                                federalTabRef = null;
                                 federalFinalize = null;
+                                try {
+                                    if (monitorController) monitorController.abort();
+                                } catch (e) {
+                                    /* ignore */
+                                }
                                 federalMonitorController = null;
 
                                 if (arquivoSalvo) {
-                                    if (federalTabRef) {
+                                    if (abaParaFechar) {
                                         try {
-                                            if (!federalTabRef.closed) federalTabRef.close();
+                                            if (!abaParaFechar.closed) {
+                                                abaParaFechar.close();
+                                                try { window.focus(); } catch (e) { /* ignore */ }
+                                            }
                                         } catch (e) {
                                             // ignore close errors
                                         }
                                     }
+                                    federalTabRef = null;
+
                                     let dataBanco = null;
                                     let dataFormatada = null;
 
@@ -1403,7 +1433,8 @@
                                     return;
                                 }
 
-                                if (displayTipoPendente) displayTipoPendente.textContent = "FEDERAL";
+                                federalTabRef = null;
+                                atualizarInfoPendenteModal('FEDERAL');
                                 certidaoIdPendente = idParaMonitorar;
                                 if (pendenteModal) {
                                     pendenteModal.show();
@@ -1422,9 +1453,13 @@
                                         arquivoSalvo = true;
                                         caminhoArquivoParaModal = data;
                                         showToast("Arquivo salvo no servidor!", "success");
-                                        if (novaAba && !novaAba.closed) {
-                                            novaAba.close();
-                                        }
+                                        if (novaAba) {
+                                                try {
+                                                    if (!novaAba.closed) novaAba.close();
+                                                } catch (e) {
+                                                    // ignore close errors
+                                                }
+                                            }
                                         finalizarFederal();
                                         return;
                                     }
@@ -1465,32 +1500,32 @@
                                     }
                                 }, 1000);
                             }
+
+                            window.addEventListener('focus', function () {
+                                if (!federalMonitorAtivo) return;
+
+                                let fechado = false;
+                                try {
+                                    fechado = federalTabRef ? federalTabRef.closed : true;
+                                } catch (e) {
+                                    fechado = true;
+                                }
+
+                                if (fechado) {
+                                    fetch('/certidao/monitorar_download_federal/stop', { method: 'POST' })
+                                        .catch(() => null);
+                                    if (federalMonitorController) {
+                                        federalMonitorController.abort();
+                                    }
+                                    if (federalFinalize) {
+                                        federalFinalize();
+                                    }
+                                }
+                            });
                         }
                     }
                 });
             }
-
-            window.addEventListener('focus', function () {
-                if (!federalMonitorAtivo) return;
-
-                let fechado = false;
-                try {
-                    fechado = !federalTabRef || federalTabRef.closed;
-                } catch (e) {
-                    fechado = true;
-                }
-
-                if (fechado) {
-                    fetch('/certidao/monitorar_download_federal/stop', { method: 'POST' })
-                        .catch(() => null);
-                    if (federalMonitorController) {
-                        federalMonitorController.abort();
-                    }
-                    if (federalFinalize) {
-                        federalFinalize();
-                    }
-                }
-            });
 
             if (confirmModalElement) {
                 confirmModalElement.addEventListener('shown.bs.modal', function () {
