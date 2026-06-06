@@ -173,6 +173,8 @@ def _fgts_detectar_mensagem_impedimento(driver):
         'da regularidade do empregador perante o fgts'
     )
     msg_nao_cadastrado = 'empregador nao cadastrado'
+    msg_impedimentos_caixa = 'constam impedimentos na caixa para a comprovacao da regularidade do empregador no fgts'
+    msg_operacao_nao_efetuada = 'fger0419'
 
     if msg_insuficiente in texto_norm:
         return (
@@ -182,6 +184,12 @@ def _fgts_detectar_mensagem_impedimento(driver):
 
     if msg_nao_cadastrado in texto_norm:
         return 'Empregador não cadastrado no FGTS. Mantida como PENDENTE e seguindo para a próxima empresa.'
+
+    if msg_impedimentos_caixa in texto_norm:
+        return 'Constam impedimentos na CAIXA. Certidão FGTS mantida como PENDENTE e seguindo para a próxima empresa.'
+
+    if msg_operacao_nao_efetuada in texto_norm:
+        return 'FGER0419: operação não efetuada. Certidão FGTS mantida como PENDENTE e seguindo para a próxima empresa.'
 
     return None
 
