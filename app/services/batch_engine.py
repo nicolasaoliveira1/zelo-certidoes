@@ -3,6 +3,7 @@ from threading import Thread
 
 from app.models import Certidao, StatusEspecial, TipoCertidao, get_a_vencer_dias
 from app.services.correlation import CorrelationContext
+from app.services.execution_logger import log_event
 
 
 def batch_state_defaults():
@@ -89,6 +90,152 @@ def run_worker(worker_fn, app_factory):
     app = app_factory()
     thread = Thread(target=worker_fn, args=(app,), daemon=True)
     thread.start()
+
+
+def run_batch_loop(
+    app,
+    *,
+    lock,
+    state,
+    emit_fn,
+    nome_lote,
+    curto,
+    tag,
+    event_prefix,
+    create_driver=None,
+    eager_driver=False,
+    on_setup=None,
+    on_teardown=None,
+    recover_fn=None,
+):
+    """Loop generico de lote compartilhado por FGTS, Estadual RS e Municipal.
+
+    Parametros:
+      emit_fn(certidao_id, driver, execution_id) -> (sucesso, grave, mensagem)
+      nome_lote: rotulo usado nas mensagens de lote (ex.: 'FGTS', 'Estadual RS').
+      curto: rotulo curto por item (ex.: 'FGTS', 'RS', 'Municipal').
+      tag: prefixo dos prints de console (ex.: 'FGTS-LOTE').
+      event_prefix: prefixo dos eventos de log (`<prefix>_start` / `<prefix>_end`).
+      create_driver(): cria um WebDriver; chamado uma vez (eager) ou sob demanda.
+      eager_driver: cria o driver antes do loop (RS) em vez de no 1o item.
+      on_setup(app) -> ctx: hook opcional antes do loop (ex.: politica RS).
+      on_teardown(ctx): hook opcional no finally (ex.: desativar politica RS).
+      recover_fn(certidao_id, execution_id, driver, sucesso, grave, mensagem)
+        -> (driver, sucesso, grave, mensagem): recuperacao opcional pos-emissao
+        (ex.: recriar driver do FGTS apos falha de carregamento).
+    """
+    with app.app_context():
+        driver = None
+        setup_ctx = None
+        print(f"[{tag}] Worker iniciado.")
+        execution_id = state.get('execution_id')
+        if execution_id:
+            CorrelationContext.set_execution_id(execution_id)
+        log_event(f'{event_prefix}_start', status='running')
+
+        try:
+            if on_setup:
+                setup_ctx = on_setup(app)
+            if eager_driver and create_driver:
+                driver = create_driver()
+
+            while True:
+                with lock:
+                    if state['stop_requested']:
+                        if state.get('stop_action') == 'stop':
+                            state['status'] = 'stopped'
+                            append_batch_message(
+                                state,
+                                f'Lote {nome_lote} interrompido por solicitação.',
+                                level='warning',
+                            )
+                        else:
+                            state['status'] = 'paused'
+                            append_batch_message(
+                                state,
+                                f'Lote {nome_lote} pausado por solicitação.',
+                                level='warning',
+                            )
+                        break
+
+                    if state['index'] >= state['total']:
+                        state['status'] = 'completed'
+                        state['current_id'] = None
+                        state['finished_at'] = datetime.utcnow()
+                        append_batch_message(
+                            state,
+                            f'Lote {nome_lote} concluído com sucesso.',
+                            level='info',
+                        )
+                        break
+
+                    certidao_id = state['ids'][state['index']]
+                    state['current_id'] = certidao_id
+                    append_batch_message(
+                        state,
+                        f"{curto} iniciando ID={certidao_id} "
+                        f"({state['index'] + 1}/{state['total']}).",
+                        level='info',
+                        certidao_id=certidao_id,
+                    )
+
+                if driver is None and create_driver:
+                    driver = create_driver()
+
+                sucesso, grave, mensagem = emit_fn(certidao_id, driver, execution_id)
+
+                if recover_fn:
+                    driver, sucesso, grave, mensagem = recover_fn(
+                        certidao_id, execution_id, driver, sucesso, grave, mensagem
+                    )
+
+                with lock:
+                    if state['stop_requested']:
+                        state['status'] = (
+                            'stopped' if state.get('stop_action') == 'stop' else 'paused'
+                        )
+                        break
+
+                    if grave:
+                        state['status'] = 'error'
+                        state['message'] = mensagem or f'Erro grave no lote {nome_lote}.'
+                        append_batch_message(
+                            state, state['message'], level='error', certidao_id=certidao_id
+                        )
+                        break
+
+                    if not sucesso:
+                        state['falhas'] += 1
+                        append_batch_message(
+                            state,
+                            f"{curto} falhou ID={certidao_id}: {mensagem}",
+                            level='warning',
+                            certidao_id=certidao_id,
+                        )
+                    else:
+                        state['success'] += 1
+                        append_batch_message(
+                            state,
+                            f"{curto} OK ID={certidao_id}.",
+                            level='info',
+                            certidao_id=certidao_id,
+                        )
+
+                    state['index'] += 1
+        finally:
+            if driver:
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+            if on_teardown:
+                try:
+                    on_teardown(setup_ctx)
+                except Exception:
+                    pass
+            log_event(f'{event_prefix}_end', status=state.get('status'))
+            CorrelationContext.clear()
+            print(f"[{tag}] Worker encerrado.")
 
 
 def request_pause(batch_lock, batch_state):

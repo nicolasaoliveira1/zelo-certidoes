@@ -1007,126 +1007,31 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False, 
 
 
 def _rs_batch_worker(app):
-    with app.app_context():
-        driver = None
-        rs_policy_ativa = False
-        print("[ESTADUAL-RS-LOTE] Worker iniciado.")
-        execution_id = RS_BATCH_STATE.get('execution_id')
-        if execution_id:
-            CorrelationContext.set_execution_id(execution_id)
-        log_event('rs_batch_worker_start', status='running')
+    def _on_setup(_app):
+        return _ativar_politica_autoselect_rs_temporaria()
 
-        try:
-            rs_policy_ativa = _ativar_politica_autoselect_rs_temporaria()
-            driver = _criar_driver_chrome(anonimo=False, usar_perfil=True)
+    def _on_teardown(rs_policy_ativa):
+        if rs_policy_ativa:
+            _desativar_politica_autoselect_rs_temporaria()
 
-            while True:
-                with RS_BATCH_LOCK:
-                    if RS_BATCH_STATE['stop_requested']:
-                        if RS_BATCH_STATE.get('stop_action') == 'stop':
-                            RS_BATCH_STATE['status'] = 'stopped'
-                            print("[ESTADUAL-RS-LOTE] Interrompido por parada solicitada.")
-                            batch_engine.append_batch_message(
-                                RS_BATCH_STATE,
-                                'Lote Estadual RS interrompido por solicitação.',
-                                level='warning',
-                            )
-                        else:
-                            RS_BATCH_STATE['status'] = 'paused'
-                            print("[ESTADUAL-RS-LOTE] Pausado por solicitação.")
-                            batch_engine.append_batch_message(
-                                RS_BATCH_STATE,
-                                'Lote Estadual RS pausado por solicitação.',
-                                level='warning',
-                            )
-                        break
+    batch_engine.run_batch_loop(
+        app,
+        lock=RS_BATCH_LOCK,
+        state=RS_BATCH_STATE,
+        emit_fn=lambda cid, drv, eid: _emitir_estadual_rs_certidao(
+            cid, driver=drv, usar_2captcha=True, execution_id=eid
+        ),
+        nome_lote='Estadual RS',
+        curto='RS',
+        tag='ESTADUAL-RS-LOTE',
+        event_prefix='rs_batch_worker',
+        create_driver=lambda: _criar_driver_chrome(anonimo=False, usar_perfil=True),
+        eager_driver=True,
+        on_setup=_on_setup,
+        on_teardown=_on_teardown,
+    )
 
-                    if RS_BATCH_STATE['index'] >= RS_BATCH_STATE['total']:
-                        RS_BATCH_STATE['status'] = 'completed'
-                        RS_BATCH_STATE['current_id'] = None
-                        RS_BATCH_STATE['finished_at'] = datetime.utcnow()
-                        print("[ESTADUAL-RS-LOTE] Finalizado com sucesso.")
-                        batch_engine.append_batch_message(
-                            RS_BATCH_STATE,
-                            'Lote Estadual RS concluído com sucesso.',
-                            level='info',
-                        )
-                        break
 
-                    certidao_id = RS_BATCH_STATE['ids'][RS_BATCH_STATE['index']]
-                    RS_BATCH_STATE['current_id'] = certidao_id
-                    print(
-                        f"[ESTADUAL-RS-LOTE] Iniciando emissão ID={certidao_id} "
-                        f"({RS_BATCH_STATE['index'] + 1}/{RS_BATCH_STATE['total']})."
-                    )
-                    batch_engine.append_batch_message(
-                        RS_BATCH_STATE,
-                        (
-                            f"RS iniciando ID={certidao_id} "
-                            f"({RS_BATCH_STATE['index'] + 1}/{RS_BATCH_STATE['total']})."
-                        ),
-                        level='info',
-                        certidao_id=certidao_id,
-                    )
-
-                sucesso, grave, mensagem = _emitir_estadual_rs_certidao(
-                    certidao_id,
-                    driver=driver,
-                    usar_2captcha=True,
-                    execution_id=execution_id,
-                )
-
-                with RS_BATCH_LOCK:
-                    if RS_BATCH_STATE['stop_requested']:
-                        if RS_BATCH_STATE.get('stop_action') == 'stop':
-                            RS_BATCH_STATE['status'] = 'stopped'
-                        else:
-                            RS_BATCH_STATE['status'] = 'paused'
-                        break
-
-                    if grave:
-                        RS_BATCH_STATE['status'] = 'error'
-                        RS_BATCH_STATE['message'] = mensagem or 'Erro grave no lote Estadual RS.'
-                        print(f"[ESTADUAL-RS-LOTE] Erro grave: {RS_BATCH_STATE['message']}")
-                        batch_engine.append_batch_message(
-                            RS_BATCH_STATE,
-                            RS_BATCH_STATE['message'],
-                            level='error',
-                            certidao_id=certidao_id,
-                        )
-                        break
-
-                    if not sucesso:
-                        RS_BATCH_STATE['falhas'] += 1
-                        print(f"[ESTADUAL-RS-LOTE] Falha na emissão ID={certidao_id}: {mensagem}")
-                        batch_engine.append_batch_message(
-                            RS_BATCH_STATE,
-                            f"RS falhou ID={certidao_id}: {mensagem}",
-                            level='warning',
-                            certidao_id=certidao_id,
-                        )
-                    else:
-                        RS_BATCH_STATE['success'] += 1
-                        print(f"[ESTADUAL-RS-LOTE] Emissão OK ID={certidao_id}.")
-                        batch_engine.append_batch_message(
-                            RS_BATCH_STATE,
-                            f"RS OK ID={certidao_id}.",
-                            level='info',
-                            certidao_id=certidao_id,
-                        )
-
-                    RS_BATCH_STATE['index'] += 1
-        finally:
-            if driver:
-                try:
-                    driver.quit()
-                except Exception:
-                    pass
-            if rs_policy_ativa:
-                _desativar_politica_autoselect_rs_temporaria()
-            log_event('rs_batch_worker_end', status=RS_BATCH_STATE.get('status'))
-            CorrelationContext.clear()
-            print("[ESTADUAL-RS-LOTE] Worker encerrado.")
 def _imbe_encontrar_captcha_imagem(driver, timeout=10):
     candidatos = [
         "//img[contains(translate(@alt, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'verificacao')]",
@@ -1578,110 +1483,19 @@ def _emitir_municipal_certidao_lote(certidao_id, driver=None, execution_id=None)
 
 
 def _municipal_batch_worker(app):
-    with app.app_context():
-        driver = None
-        print('[MUNICIPAL-LOTE] Worker iniciado.')
-        execution_id = MUNICIPAL_BATCH_STATE.get('execution_id')
-        if execution_id:
-            CorrelationContext.set_execution_id(execution_id)
-        log_event('municipal_batch_worker_start', status='running')
-        while True:
-            with MUNICIPAL_BATCH_LOCK:
-                if MUNICIPAL_BATCH_STATE['stop_requested']:
-                    if MUNICIPAL_BATCH_STATE.get('stop_action') == 'stop':
-                        MUNICIPAL_BATCH_STATE['status'] = 'stopped'
-                        batch_engine.append_batch_message(
-                            MUNICIPAL_BATCH_STATE,
-                            'Lote Municipal interrompido por solicitação.',
-                            level='warning',
-                        )
-                    else:
-                        MUNICIPAL_BATCH_STATE['status'] = 'paused'
-                        batch_engine.append_batch_message(
-                            MUNICIPAL_BATCH_STATE,
-                            'Lote Municipal pausado por solicitação.',
-                            level='warning',
-                        )
-                    break
-
-                if MUNICIPAL_BATCH_STATE['index'] >= MUNICIPAL_BATCH_STATE['total']:
-                    MUNICIPAL_BATCH_STATE['status'] = 'completed'
-                    MUNICIPAL_BATCH_STATE['current_id'] = None
-                    MUNICIPAL_BATCH_STATE['finished_at'] = datetime.utcnow()
-                    batch_engine.append_batch_message(
-                        MUNICIPAL_BATCH_STATE,
-                        'Lote Municipal concluído com sucesso.',
-                        level='info',
-                    )
-                    break
-
-                certidao_id = MUNICIPAL_BATCH_STATE['ids'][MUNICIPAL_BATCH_STATE['index']]
-                MUNICIPAL_BATCH_STATE['current_id'] = certidao_id
-                batch_engine.append_batch_message(
-                    MUNICIPAL_BATCH_STATE,
-                    (
-                        f"Municipal iniciando ID={certidao_id} "
-                        f"({MUNICIPAL_BATCH_STATE['index'] + 1}/{MUNICIPAL_BATCH_STATE['total']})."
-                    ),
-                    level='info',
-                    certidao_id=certidao_id,
-                )
-
-            if driver is None:
-                driver = _criar_driver_chrome()
-
-            sucesso, grave, mensagem = _emitir_municipal_certidao_lote(
-                certidao_id,
-                driver=driver,
-                execution_id=execution_id,
-            )
-
-            with MUNICIPAL_BATCH_LOCK:
-                if MUNICIPAL_BATCH_STATE['stop_requested']:
-                    if MUNICIPAL_BATCH_STATE.get('stop_action') == 'stop':
-                        MUNICIPAL_BATCH_STATE['status'] = 'stopped'
-                    else:
-                        MUNICIPAL_BATCH_STATE['status'] = 'paused'
-                    break
-
-                if grave:
-                    MUNICIPAL_BATCH_STATE['status'] = 'error'
-                    MUNICIPAL_BATCH_STATE['message'] = mensagem or 'Erro grave no lote Municipal.'
-                    batch_engine.append_batch_message(
-                        MUNICIPAL_BATCH_STATE,
-                        MUNICIPAL_BATCH_STATE['message'],
-                        level='error',
-                        certidao_id=certidao_id,
-                    )
-                    break
-
-                if not sucesso:
-                    MUNICIPAL_BATCH_STATE['falhas'] += 1
-                    batch_engine.append_batch_message(
-                        MUNICIPAL_BATCH_STATE,
-                        f"Municipal falhou ID={certidao_id}: {mensagem}",
-                        level='warning',
-                        certidao_id=certidao_id,
-                    )
-                else:
-                    MUNICIPAL_BATCH_STATE['success'] += 1
-                    batch_engine.append_batch_message(
-                        MUNICIPAL_BATCH_STATE,
-                        f"Municipal OK ID={certidao_id}.",
-                        level='info',
-                        certidao_id=certidao_id,
-                    )
-
-                MUNICIPAL_BATCH_STATE['index'] += 1
-
-        if driver:
-            try:
-                driver.quit()
-            except Exception:
-                pass
-        log_event('municipal_batch_worker_end', status=MUNICIPAL_BATCH_STATE.get('status'))
-        CorrelationContext.clear()
-        print('[MUNICIPAL-LOTE] Worker encerrado.')
+    batch_engine.run_batch_loop(
+        app,
+        lock=MUNICIPAL_BATCH_LOCK,
+        state=MUNICIPAL_BATCH_STATE,
+        emit_fn=lambda cid, drv, eid: _emitir_municipal_certidao_lote(
+            cid, driver=drv, execution_id=eid
+        ),
+        nome_lote='Municipal',
+        curto='Municipal',
+        tag='MUNICIPAL-LOTE',
+        event_prefix='municipal_batch_worker',
+        create_driver=_criar_driver_chrome,
+    )
 
 
 def _emitir_fgts_certidao(certidao_id, driver=None, execution_id=None):
@@ -1833,124 +1647,32 @@ def _emitir_fgts_certidao(certidao_id, driver=None, execution_id=None):
 
 
 def _fgts_batch_worker(app):
-    with app.app_context():
-        driver = None
-        print("[FGTS-LOTE] Worker iniciado.")
-        execution_id = FGTS_BATCH_STATE.get('execution_id')
-        if execution_id:
-            CorrelationContext.set_execution_id(execution_id)
-        log_event('fgts_batch_worker_start', status='running')
-        while True:
-            with FGTS_BATCH_LOCK:
-                if FGTS_BATCH_STATE['stop_requested']:
-                    if FGTS_BATCH_STATE.get('stop_action') == 'stop':
-                        FGTS_BATCH_STATE['status'] = 'stopped'
-                        print("[FGTS-LOTE] Interrompido por parada solicitada.")
-                        batch_engine.append_batch_message(
-                            FGTS_BATCH_STATE,
-                            'Lote FGTS interrompido por solicitação.',
-                            level='warning',
-                        )
-                    else:
-                        FGTS_BATCH_STATE['status'] = 'paused'
-                        print("[FGTS-LOTE] Pausado por solicitação.")
-                        batch_engine.append_batch_message(
-                            FGTS_BATCH_STATE,
-                            'Lote FGTS pausado por solicitação.',
-                            level='warning',
-                        )
-                    break
-
-                if FGTS_BATCH_STATE['index'] >= FGTS_BATCH_STATE['total']:
-                    FGTS_BATCH_STATE['status'] = 'completed'
-                    FGTS_BATCH_STATE['current_id'] = None
-                    FGTS_BATCH_STATE['finished_at'] = datetime.utcnow()
-                    print("[FGTS-LOTE] Finalizado com sucesso.")
-                    batch_engine.append_batch_message(
-                        FGTS_BATCH_STATE,
-                        'Lote FGTS concluído com sucesso.',
-                        level='info',
-                    )
-                    break
-
-                certidao_id = FGTS_BATCH_STATE['ids'][FGTS_BATCH_STATE['index']]
-                FGTS_BATCH_STATE['current_id'] = certidao_id
-                print(f"[FGTS-LOTE] Iniciando emissão ID={certidao_id} ({FGTS_BATCH_STATE['index'] + 1}/{FGTS_BATCH_STATE['total']}).")
-                batch_engine.append_batch_message(
-                    FGTS_BATCH_STATE,
-                    (
-                        f"FGTS iniciando ID={certidao_id} "
-                        f"({FGTS_BATCH_STATE['index'] + 1}/{FGTS_BATCH_STATE['total']})."
-                    ),
-                    level='info',
-                    certidao_id=certidao_id,
-                )
-
-            if driver is None:
-                driver = _criar_driver_chrome()
-
-            sucesso, grave, mensagem = _emitir_fgts_certidao(certidao_id, driver=driver, execution_id=execution_id)
-
-            if grave and mensagem == 'Erro ao carregar página FGTS.':
-                try:
-                    driver.quit()
-                except Exception:
-                    pass
-                driver = _criar_driver_chrome()
-                print("[FGTS-LOTE] Recriando driver após falha de carregamento.")
-                sucesso, grave, mensagem = _emitir_fgts_certidao(certidao_id, driver=driver, execution_id=execution_id)
-
-            with FGTS_BATCH_LOCK:
-                if FGTS_BATCH_STATE['stop_requested']:
-                    if FGTS_BATCH_STATE.get('stop_action') == 'stop':
-                        FGTS_BATCH_STATE['status'] = 'stopped'
-                        print("[FGTS-LOTE] Interrompido durante execução.")
-                    else:
-                        FGTS_BATCH_STATE['status'] = 'paused'
-                        print("[FGTS-LOTE] Pausado durante execução.")
-                    break
-
-                if grave:
-                    FGTS_BATCH_STATE['status'] = 'error'
-                    FGTS_BATCH_STATE['message'] = mensagem or 'Erro grave.'
-                    print(f"[FGTS-LOTE] Erro grave: {FGTS_BATCH_STATE['message']}")
-                    batch_engine.append_batch_message(
-                        FGTS_BATCH_STATE,
-                        FGTS_BATCH_STATE['message'],
-                        level='error',
-                        certidao_id=certidao_id,
-                    )
-                    break
-
-                if not sucesso:
-                    FGTS_BATCH_STATE['falhas'] += 1
-                    print(f"[FGTS-LOTE] Falha na emissão ID={certidao_id}. Motivo: {mensagem}")
-                    batch_engine.append_batch_message(
-                        FGTS_BATCH_STATE,
-                        f"FGTS falhou ID={certidao_id}: {mensagem}",
-                        level='warning',
-                        certidao_id=certidao_id,
-                    )
-                else:
-                    FGTS_BATCH_STATE['success'] += 1
-                    print(f"[FGTS-LOTE] Emissão OK ID={certidao_id}.")
-                    batch_engine.append_batch_message(
-                        FGTS_BATCH_STATE,
-                        f"FGTS OK ID={certidao_id}.",
-                        level='info',
-                        certidao_id=certidao_id,
-                    )
-
-                FGTS_BATCH_STATE['index'] += 1
-
-        if driver:
+    def _recover(certidao_id, execution_id, driver, sucesso, grave, mensagem):
+        # FGTS: recria o driver e tenta de novo apos falha de carregamento da pagina
+        if grave and mensagem == 'Erro ao carregar página FGTS.':
             try:
                 driver.quit()
             except Exception:
                 pass
-        log_event('fgts_batch_worker_end', status=FGTS_BATCH_STATE.get('status'))
-        CorrelationContext.clear()
-        print("[FGTS-LOTE] Worker encerrado.")
+            driver = _criar_driver_chrome()
+            print("[FGTS-LOTE] Recriando driver após falha de carregamento.")
+            sucesso, grave, mensagem = _emitir_fgts_certidao(
+                certidao_id, driver=driver, execution_id=execution_id
+            )
+        return driver, sucesso, grave, mensagem
+
+    batch_engine.run_batch_loop(
+        app,
+        lock=FGTS_BATCH_LOCK,
+        state=FGTS_BATCH_STATE,
+        emit_fn=lambda cid, drv, eid: _emitir_fgts_certidao(cid, driver=drv, execution_id=eid),
+        nome_lote='FGTS',
+        curto='FGTS',
+        tag='FGTS-LOTE',
+        event_prefix='fgts_batch_worker',
+        create_driver=_criar_driver_chrome,
+        recover_fn=_recover,
+    )
 
 
 @bp.route('/fgts/lote/info/<int:certidao_id>')
