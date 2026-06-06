@@ -7,14 +7,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from app.captcha_solver import (AltchaSolverConfigError, AltchaSolverRuntimeError,
                                 solve_altcha)
-
-
-def _to_bool(value, default=False):
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    return str(value).strip().lower() in {'1', 'true', 'yes', 'on', 'sim'}
+from app.utils import to_bool as _to_bool
 
 
 def _normalizar_json_altcha(raw_value):

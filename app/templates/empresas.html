@@ -82,7 +82,7 @@
                         <td>{{ empresa.estado }}</td>
                         <td>{{ empresa.cidade }}</td>
                         <td>{{ empresa.inscricao_mobiliaria or '-' }}</td>
-                        <td>{{ empresa.certidoes.count() }}</td>
+                        <td>{{ empresa.certidoes | length }}</td>
                         <td class="text-end pe-4">
                                      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.empresa_detalhe', empresa_id=empresa.id) }}"
                                          aria-label="Ver ou editar empresa {{ empresa.nome }}">

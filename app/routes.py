@@ -59,6 +59,7 @@ from app.models import (
     TipoCertidao,
     get_a_vencer_dias,
 )
+from app.utils import to_bool as _to_bool
 from app.services import batch_engine
 from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
@@ -70,6 +71,15 @@ from app.services.rs_altcha import (
 )
 
 bp = Blueprint('main', __name__)
+
+# mapa unico de estrategias de localizacao Selenium (usado em varios fluxos)
+BY_MAP = {
+    'id': By.ID,
+    'name': By.NAME,
+    'css_selector': By.CSS_SELECTOR,
+    'xpath': By.XPATH,
+    'class_name': By.CLASS_NAME,
+}
 
 FGTS_BATCH_LOCK = Lock()
 RS_BATCH_LOCK = Lock()
@@ -292,14 +302,6 @@ def _get_config_value(name, default=None):
         return os.environ.get(name, default)
 
 
-def _to_bool(value, default=False):
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    return str(value).strip().lower() in {'1', 'true', 'yes', 'on', 'sim'}
-
-
 def _normalizar_cnpj(cnpj):
     return ''.join(filter(str.isdigit, cnpj or ''))
 
@@ -327,7 +329,7 @@ def _json_error(message, code=400, **extra):
 
 
 def _montar_politica_autoselect_rs():
-    if not _to_bool(_get_config_value('RS_CERT_AUTOSELECT_ENABLED', True), True):
+    if not _to_bool(_get_config_value('RS_CERT_AUTOSELECT_ENABLED', False), False):
         return None
 
     pattern = (_get_config_value('RS_CERT_AUTOSELECT_PATTERN', 'https://www.sefaz.rs.gov.br') or '').strip()
@@ -1339,12 +1341,7 @@ def _emitir_municipal_certidao_lote(certidao_id, driver=None, execution_id=None)
 
         if info_site.get('pre_fill_click_id'):
             click_by = info_site.get('pre_fill_click_by') or 'id'
-            click_map = {
-                'id': By.ID,
-                'name': By.NAME,
-                'css_selector': By.CSS_SELECTOR,
-                'xpath': By.XPATH,
-            }
+            click_map = BY_MAP
             by = click_map.get(click_by)
             if by:
                 try:
@@ -1355,12 +1352,7 @@ def _emitir_municipal_certidao_lote(certidao_id, driver=None, execution_id=None)
                     pass
 
         if info_site.get('cnpj_field_id'):
-            by_map = {
-                'id': By.ID,
-                'name': By.NAME,
-                'css_selector': By.CSS_SELECTOR,
-                'xpath': By.XPATH,
-            }
+            by_map = BY_MAP
             field_by = by_map.get(info_site.get('by'))
             if field_by:
                 try:
@@ -1392,12 +1384,7 @@ def _emitir_municipal_certidao_lote(certidao_id, driver=None, execution_id=None)
             return True, False, 'Certidão sem negativa, marcada como pendente.'
 
         if info_site.get('inscricao_field_id'):
-            by_map = {
-                'id': By.ID,
-                'name': By.NAME,
-                'css_selector': By.CSS_SELECTOR,
-                'xpath': By.XPATH,
-            }
+            by_map = BY_MAP
             field_by = by_map.get(info_site.get('inscricao_field_by'))
             if field_by:
                 try:
@@ -2472,7 +2459,7 @@ def _classificar_e_tratar_pdf_positivo(certidao, caminho_pdf, origem_log='PDF', 
             certidao.status_especial = StatusEspecial.PENDENTE
             certidao.data_validade = None
             db.session.commit()
-    except Exception as e_db:
+    except Exception:
         db.session.rollback()
         msg = (
             f'Certidão {tipo_label_final} POSITIVA detectada, '
@@ -2743,7 +2730,7 @@ def dashboard():
 
     certidoes_por_empresa = {}
     for empresa in empresas:
-        certidoes = empresa.certidoes.all()
+        certidoes = list(empresa.certidoes)
         if tipo_set:
             certidoes = [
                 cert for cert in certidoes
@@ -2910,7 +2897,7 @@ def empresas():
 @bp.route('/empresa/<int:empresa_id>')
 def empresa_detalhe(empresa_id):
     empresa = Empresa.query.get_or_404(empresa_id)
-    certidoes = sorted(empresa.certidoes.all(), key=lambda item: item.ordem_exibicao)
+    certidoes = sorted(empresa.certidoes, key=lambda item: item.ordem_exibicao)
     return render_template(
         'empresa_detalhe.html',
         empresa=empresa,
@@ -3534,13 +3521,7 @@ def _executar_steps_municipio(driver, wait, steps, cnpj_limpo, inscricao_limpa, 
         texto = re.sub(r'\s+', ' ', texto).strip().upper()
         return texto
 
-    by_map = {
-        'id': By.ID,
-        'name': By.NAME,
-        'css_selector': By.CSS_SELECTOR,
-        'xpath': By.XPATH,
-        'class_name': By.CLASS_NAME
-    }
+    by_map = BY_MAP
 
     for idx, step in enumerate(steps, start=1):
         tipo = (step or {}).get('tipo')
@@ -3749,12 +3730,7 @@ def baixar_certidao(certidao_id):
                     400,
                 )
 
-    by_map = {
-        'id': By.ID,
-        'css_selector': By.CSS_SELECTOR,
-        'xpath': By.XPATH,
-        'name': By.NAME
-    }
+    by_map = BY_MAP
 
     def _get_by(key):
         return by_map.get(key)
@@ -4006,7 +3982,7 @@ def baixar_certidao(certidao_id):
 
                     if tipo_certidao_chave == 'TRABALHISTA':
                         campo1.send_keys(Keys.TAB)
-                except:
+                except Exception:
                     pass
 
         if tipo_certidao_chave == 'ESTADUAL' and estado_emp == 'RS':
@@ -4057,7 +4033,7 @@ def baixar_certidao(certidao_id):
                     campo2.click()
                     campo2.send_keys(inscricao_limpa)
                     campo2.send_keys(Keys.TAB)
-                except:
+                except Exception:
                     pass
 
         if not pular_monitoramento:
@@ -4068,7 +4044,7 @@ def baixar_certidao(certidao_id):
             while True:
                 try:
                     driver.window_handles
-                except:
+                except Exception:
                     print("Janela fechada pelo usuário.")
                     break
 
@@ -4096,32 +4072,10 @@ def baixar_certidao(certidao_id):
                                 print(f"Aviso: não foi possível salvar caminho no banco: {e_db}")
 
                             if tipo_certidao_chave == 'ESTADUAL' and estado_emp == 'RS':
-                                rs_estadual_classificacao = _classificar_certidao_estadual_rs(msg)
+                                rs_estadual_classificacao, rs_estadual_msg = _classificar_e_tratar_pdf_positivo(
+                                    certidao, msg, origem_log='ESTADUAL-RS', tipo_label='ESTADUAL RS'
+                                )
                                 print(f"[ESTADUAL-RS] Classificação do PDF: {rs_estadual_classificacao}")
-
-                                if rs_estadual_classificacao == 'positiva':
-                                    erro_remocao = None
-                                    try:
-                                        if msg and os.path.exists(msg):
-                                            os.remove(msg)
-                                    except Exception as exc_remove:
-                                        erro_remocao = str(exc_remove)
-                                        print(f"[ESTADUAL-RS] Não foi possível remover PDF positivo: {exc_remove}")
-
-                                    try:
-                                        certidao.caminho_arquivo = None
-                                        certidao.status_especial = StatusEspecial.PENDENTE
-                                        certidao.data_validade = None
-                                        db.session.commit()
-                                    except Exception as e_db:
-                                        db.session.rollback()
-                                        print(f"[ESTADUAL-RS] Erro ao marcar pendente após PDF positivo: {e_db}")
-                                        rs_estadual_msg = 'Certidão POSITIVA detectada, mas houve erro ao marcar como PENDENTE no banco.'
-                                        rs_estadual_classificacao = 'erro'
-                                    else:
-                                        rs_estadual_msg = 'Certidão ESTADUAL RS detectada como POSITIVA. Arquivo removido e certidão marcada como PENDENTE.'
-                                        if erro_remocao:
-                                            rs_estadual_msg += f' Não foi possível remover o arquivo automaticamente: {erro_remocao}'
 
                             if (
                                 tipo_certidao_chave == 'MUNICIPAL'
@@ -4130,35 +4084,11 @@ def baixar_certidao(certidao_id):
                                 and bool((config_municipal or {}).get('classificar_pdf_status'))
                             ):
                                 origem_pdf = f"MUNICIPAL-{regra_municipio.nome}"
-                                municipal_pdf_classificacao = _classificar_status_certidao_pdf(msg, origem_log=origem_pdf)
+                                municipal_pdf_classificacao, municipal_pdf_msg = _classificar_e_tratar_pdf_positivo(
+                                    certidao, msg, origem_log=origem_pdf,
+                                    tipo_label=f'MUNICIPAL ({regra_municipio.nome})'
+                                )
                                 print(f"[{origem_pdf}] Classificação do PDF: {municipal_pdf_classificacao}")
-
-                                if municipal_pdf_classificacao == 'positiva':
-                                    erro_remocao = None
-                                    try:
-                                        if msg and os.path.exists(msg):
-                                            os.remove(msg)
-                                    except Exception as exc_remove:
-                                        erro_remocao = str(exc_remove)
-                                        print(f"[{origem_pdf}] Não foi possível remover PDF positivo: {exc_remove}")
-
-                                    try:
-                                        certidao.caminho_arquivo = None
-                                        certidao.status_especial = StatusEspecial.PENDENTE
-                                        certidao.data_validade = None
-                                        db.session.commit()
-                                    except Exception as e_db:
-                                        db.session.rollback()
-                                        print(f"[{origem_pdf}] Erro ao marcar pendente após PDF positivo: {e_db}")
-                                        municipal_pdf_msg = 'Certidão MUNICIPAL POSITIVA detectada, mas houve erro ao marcar como PENDENTE no banco.'
-                                        municipal_pdf_classificacao = 'erro'
-                                    else:
-                                        municipal_pdf_msg = (
-                                            f"Certidão MUNICIPAL ({regra_municipio.nome}) detectada como POSITIVA. "
-                                            "Arquivo removido e certidão marcada como PENDENTE."
-                                        )
-                                        if erro_remocao:
-                                            municipal_pdf_msg += f' Não foi possível remover o arquivo automaticamente: {erro_remocao}'
 
                             if (
                                 tipo_certidao_chave not in {'MUNICIPAL', 'FEDERAL'}
@@ -4235,7 +4165,7 @@ def baixar_certidao(certidao_id):
         if driver:
             try:
                 driver.quit()
-            except:
+            except Exception:
                 pass
         return _json_error("Ocorreu um erro na automação.", 500)
     finally:

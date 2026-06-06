@@ -29,7 +29,7 @@ class Empresa(db.Model):
     inscricao_mobiliaria = db.Column(db.String(6), nullable=True)
 
     certidoes = db.relationship(
-        'Certidao', backref='empresa', lazy='dynamic', cascade="all, delete-orphan")
+        'Certidao', backref='empresa', lazy='selectin', cascade="all, delete-orphan")
 
     def __repr__(self):
         return f'<Empresa {self.nome}>'

@@ -229,7 +229,7 @@
         {% set counts = namespace(total=0, validas=0, a_vencer=0, vencidas=0, pendentes=0, nao_definida=0) %}
         {% set counts_tipo = namespace(total=0, federal=0, fgts=0, estadual=0, municipal=0, trabalhista=0) %}
 
-        {% for c in empresa.certidoes.all() %}
+        {% for c in empresa.certidoes %}
             {% set status_calculado = '' %}
             {% if c.status_especial and c.status_especial.value == 'Pendente' %}
                 {% set status_calculado = 'pendentes' %}
