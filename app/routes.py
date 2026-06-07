@@ -7,7 +7,7 @@ import string
 import tempfile
 import time
 from datetime import date, datetime, timedelta
-from threading import Lock, Thread
+from threading import Thread
 
 from flask import (
     Blueprint,
@@ -36,6 +36,17 @@ from selenium.webdriver.support.ui import Select, WebDriverWait
 
 from app import db, file_manager
 from app.automation import SITES_CERTIDOES, VALIDADES_CERTIDOES, pdf, steps
+from app.automation.batch_state import (
+    FGTS_BATCH_LOCK,
+    FGTS_BATCH_STATE,
+    MUNICIPAL_BATCH_LOCK,
+    MUNICIPAL_BATCH_STATE,
+    RS_BATCH_LOCK,
+    RS_BATCH_STATE,
+    fgts_stop_requested as _fgts_stop_requested,
+    municipal_batch_stop_requested as _municipal_batch_stop_requested,
+    rs_batch_stop_requested as _rs_batch_stop_requested,
+)
 from app.automation.driver import (
     _ativar_politica_autoselect_rs_temporaria,
     _configurar_download_automatico_chrome,
@@ -66,17 +77,6 @@ from app.services.rs_altcha import (
 )
 
 bp = Blueprint('main', __name__)
-
-FGTS_BATCH_LOCK = Lock()
-RS_BATCH_LOCK = Lock()
-MUNICIPAL_BATCH_LOCK = Lock()
-
-FGTS_BATCH_STATE = batch_engine.batch_state_defaults()
-
-RS_BATCH_STATE = batch_engine.batch_state_defaults()
-
-MUNICIPAL_BATCH_STATE = batch_engine.batch_state_defaults()
-
 
 @bp.before_app_request
 def _before_request_observability():
@@ -114,18 +114,6 @@ def _after_request_observability(response):
 
 def _current_app_object():
     return current_app._get_current_object()
-
-
-def _fgts_stop_requested():
-    return FGTS_BATCH_STATE.get('stop_requested')
-
-
-def _rs_batch_stop_requested():
-    return RS_BATCH_STATE.get('stop_requested')
-
-
-def _municipal_batch_stop_requested():
-    return MUNICIPAL_BATCH_STATE.get('stop_requested')
 
 
 def _classe_status_por_data(data, tipo=None):
