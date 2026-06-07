@@ -52,8 +52,12 @@ def _normalizar(texto):
     return texto.upper().strip()
 
 
-def classificar_status(caminho_pdf, origem_log='PDF'):
-    texto = _normalizar(extrair_texto(caminho_pdf, origem_log=origem_log))
+def classificar_texto(texto):
+    """Classifica o conteúdo textual de uma certidão (lógica pura, testável).
+
+    Retorna 'efeito_negativa' | 'positiva' | 'negativa' | 'desconhecida'.
+    """
+    texto = _normalizar(texto)
     if not texto:
         return 'desconhecida'
 
@@ -67,6 +71,10 @@ def classificar_status(caminho_pdf, origem_log='PDF'):
         return 'negativa'
 
     return 'desconhecida'
+
+
+def classificar_status(caminho_pdf, origem_log='PDF'):
+    return classificar_texto(extrair_texto(caminho_pdf, origem_log=origem_log))
 
 
 def classificar_e_tratar_positivo(certidao, caminho_pdf, origem_log='PDF', tipo_label=None):
