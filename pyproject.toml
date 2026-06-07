@@ -6,3 +6,10 @@ exclude = ["venv", "chrome-profile", "migrations", "instance"]
 [tool.ruff.lint]
 # F = pyflakes (imports/variaveis nao usados, nomes indefinidos); E9 = erros de sintaxe
 select = ["F", "E9"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    # Query.get legado do SQLAlchemy 2.0 (ainda funciona; migracao e cleanup futuro)
+    "ignore::sqlalchemy.exc.LegacyAPIWarning",
+]
