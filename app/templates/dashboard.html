@@ -511,8 +511,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="mb-2">A certidão <strong id="displayTipoPositivaRs">ESTADUAL</strong> foi classificada
-                        como <span class="text-danger fw-bold">POSITIVA</span>.</p>
+                    <p class="mb-2">A certidão <strong id="displayTipoPositivaRs">ESTADUAL</strong> da empresa <strong id="displayEmpresaPositivaRs">---</strong> foi classificada como <span class="text-danger fw-bold">POSITIVA</span>.</p>
                     <p class="mb-0">O arquivo foi removido e a certidão marcada como PENDENTE.</p>
                 </div>
                 <div class="modal-footer">
@@ -563,7 +562,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="batch-modal-intro mb-3">Foram encontradas certidões FGTS:</p>
+                    <p class="batch-modal-intro mb-3">Foram encontradas certidões FGTS de <strong id="fgtsBatchEmpresaDisplay">---</strong>:</p>
                     <p class="text-muted small mb-3 d-none" id="fgtsBatchScopeHint"></p>
                     <div class="batch-kpi-grid">
                         <div class="batch-kpi-card is-danger">
@@ -643,7 +642,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="batch-modal-intro mb-3">Foram encontradas certidões Estadual RS:</p>
+                    <p class="batch-modal-intro mb-3">Foram encontradas certidões Estadual RS de <strong id="rsBatchEmpresaDisplay">---</strong>:</p>
                     <p class="text-muted small mb-3 d-none" id="rsBatchScopeHint"></p>
                     <div class="batch-kpi-grid">
                         <div class="batch-kpi-card is-danger">
@@ -739,7 +738,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="batch-modal-intro mb-3">Foram encontradas certidões Municipais:</p>
+                    <p class="batch-modal-intro mb-3">Foram encontradas certidões Municipais de <strong id="municipalBatchEmpresaDisplay">---</strong>:</p>
                     <p class="text-muted small mb-3 d-none" id="municipalBatchScopeHint"></p>
                     <div class="batch-kpi-grid">
                         <div class="batch-kpi-card is-danger">
@@ -996,6 +995,7 @@
             const estadualRsPositivaModalElement = document.getElementById('estadualRsPositivaModal');
             let estadualRsPositivaModal = estadualRsPositivaModalElement ? new bootstrap.Modal(estadualRsPositivaModalElement) : null;
             const displayTipoPositivaRs = document.getElementById('displayTipoPositivaRs');
+            const displayEmpresaPositivaRs = document.getElementById('displayEmpresaPositivaRs');
 
             const infoModalElement = document.getElementById('infoModal');
             let infoModal = infoModalElement ? new bootstrap.Modal(infoModalElement) : null;
@@ -1015,6 +1015,7 @@
             const fgtsBatchLabelAVencer = document.getElementById('fgtsBatchLabelAVencer');
             const fgtsBatchLabelTotal = document.getElementById('fgtsBatchLabelTotal');
             const fgtsBatchScopeHint = document.getElementById('fgtsBatchScopeHint');
+            const fgtsBatchEmpresaDisplay = document.getElementById('fgtsBatchEmpresaDisplay');
             const btnFgtsBatchStart = document.getElementById('btnFgtsBatchStart');
             const btnFgtsSingleEmit = document.getElementById('btnFgtsSingleEmit');
 
@@ -1050,6 +1051,7 @@
             const rsBatchLabelAVencer = document.getElementById('rsBatchLabelAVencer');
             const rsBatchLabelTotal = document.getElementById('rsBatchLabelTotal');
             const rsBatchScopeHint = document.getElementById('rsBatchScopeHint');
+            const rsBatchEmpresaDisplay = document.getElementById('rsBatchEmpresaDisplay');
             const btnRsBatchStart = document.getElementById('btnRsBatchStart');
             const btnRsSingleEmit = document.getElementById('btnRsSingleEmit');
 
@@ -1087,6 +1089,7 @@
             const municipalBatchLabelAVencer = document.getElementById('municipalBatchLabelAVencer');
             const municipalBatchLabelTotal = document.getElementById('municipalBatchLabelTotal');
             const municipalBatchScopeHint = document.getElementById('municipalBatchScopeHint');
+            const municipalBatchEmpresaDisplay = document.getElementById('municipalBatchEmpresaDisplay');
             const btnMunicipalBatchStart = document.getElementById('btnMunicipalBatchStart');
             const btnMunicipalSingleEmit = document.getElementById('btnMunicipalSingleEmit');
 
@@ -1441,6 +1444,10 @@
                 ) {
                     limparInfoArquivoModal();
                     if (displayTipoPositivaRs) displayTipoPositivaRs.textContent = data.tipo_certidao || 'CERTIDÃO';
+                    if (displayEmpresaPositivaRs) {
+                        const card = linhaAtualTabela ? linhaAtualTabela.closest('.company-card') : null;
+                        displayEmpresaPositivaRs.textContent = card && card.dataset.nomeEmpresa ? card.dataset.nomeEmpresa : '';
+                    }
 
                     if (linhaAtualTabela) {
                         atualizarLinhaUI(linhaAtualTabela, 'status-vermelho', 'PENDENTE');
@@ -1783,6 +1790,7 @@
                                         });
                                     return;
                                 }
+                                if (fgtsBatchEmpresaDisplay) fgtsBatchEmpresaDisplay.textContent = fgtsBatchEmpresaNome || '';
                                 if (fgtsBatchModal) fgtsBatchModal.show();
                             })
                             .catch(() => {
@@ -1854,6 +1862,7 @@
                                         });
                                     return;
                                 }
+                                if (rsBatchEmpresaDisplay) rsBatchEmpresaDisplay.textContent = rsBatchEmpresaNome || '';
                                 if (rsBatchModal) rsBatchModal.show();
                             })
                             .catch(() => {
@@ -1966,6 +1975,7 @@
                                         });
                                     return;
                                 }
+                                if (municipalBatchEmpresaDisplay) municipalBatchEmpresaDisplay.textContent = municipalBatchEmpresaNome || '';
                                 if (municipalBatchModal) municipalBatchModal.show();
                             })
                             .catch(() => {
