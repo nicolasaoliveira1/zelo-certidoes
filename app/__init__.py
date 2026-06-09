@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from config import Config
@@ -39,7 +39,19 @@ def create_app(config_class=Config):
     # models importado para registrar as tabelas no SQLAlchemy/Migrate (efeito colateral)
     from app import routes, models  # noqa: F401
     app.register_blueprint(routes.bp)
-    
+
+    # versiona estáticos locais com ?v=mtime para o navegador nunca servir CSS/JS desatualizado
+    @app.context_processor
+    def _injetar_static_versionado():
+        def static_versionado(filename):
+            caminho = os.path.join(app.static_folder, filename)
+            try:
+                versao = int(os.path.getmtime(caminho))
+            except OSError:
+                versao = 0
+            return url_for('static', filename=filename, v=versao)
+        return {'static_versionado': static_versionado}
+
     return app
 
 

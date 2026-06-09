@@ -59,3 +59,6 @@ class Config:
     CAPTCHA_2_SERVER = os.environ.get('CAPTCHA_2_SERVER') or '2captcha.com'
         
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # recarrega templates Jinja a cada request
+    TEMPLATES_AUTO_RELOAD = True
