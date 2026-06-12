@@ -1066,10 +1066,20 @@ def marcar_pendente(certidao_id):
 
     return redirect(url_for('main.dashboard'))
 
-@bp.route('/certidao/baixar/<int:certidao_id>')
-def baixar_certidao(certidao_id):
-    file_manager.criar_chave_interrupcao()
-    certidao = Certidao.query.get_or_404(certidao_id)
+def _calcular_validade_sem_data(certidao, tipo_chave, regra):
+    if tipo_chave == 'MUNICIPAL':
+        if regra and regra.validade_dias:
+            return date.today() + timedelta(days=regra.validade_dias)
+        return None
+    return calcular_validade_padrao(certidao, None)
+
+
+def _validar_baixar(certidao):
+    """Validacoes que decidem cedo o fluxo de baixar_certidao.
+
+    Retorna uma resposta Flask (erro JSON ou redirect) para encerrar, ou None
+    para seguir com a automacao.
+    """
     tipo_certidao_chave = certidao.tipo.name
 
     if tipo_certidao_chave == 'ESTADUAL' and (certidao.empresa.estado or '').strip().upper() == 'RS':
@@ -1080,45 +1090,42 @@ def baixar_certidao(certidao_id):
                     400,
                 )
 
-    by_map = steps.BY_MAP
+    if tipo_certidao_chave == 'FEDERAL':
+        return redirect("https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj")
 
-    def _get_by(key):
-        return by_map.get(key)
+    return None
 
-    def _calcular_validade_sem_data(tipo_chave, regra):
-        if tipo_chave == 'MUNICIPAL':
-            if regra and regra.validade_dias:
-                return date.today() + timedelta(days=regra.validade_dias)
-            return None
-        return calcular_validade_padrao(certidao, None)
+
+def _montar_config_baixar(certidao):
+    """Monta a configuracao de automacao por tipo (info_site, regra municipal,
+    cnpj/inscricao, nome do arquivo, flags). Retorna (cfg, erro_response):
+    cfg=None + resposta de erro quando a precondicao falha.
+    """
+    tipo_certidao_chave = certidao.tipo.name
+
+    imbe_tipo = (request.args.get('imbe_tipo') or '').strip().lower()
+    if not imbe_tipo and certidao.subtipo:
+        imbe_tipo = _resolve_imbe_tipo_from_subtipo(certidao.subtipo)
 
     regra_municipio = None
     config_municipal = None
     usar_config_municipal = False
-    imbe_tipo = (request.args.get('imbe_tipo') or '').strip().lower()
-
-    if not imbe_tipo and certidao.subtipo:
-        imbe_tipo = _resolve_imbe_tipo_from_subtipo(certidao.subtipo)
-
-    if tipo_certidao_chave == 'FEDERAL':
-        return redirect("https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj")
-
     info_site = {}
+
     if tipo_certidao_chave != 'MUNICIPAL':
         if tipo_certidao_chave == 'ESTADUAL':
-            estado_emp = (certidao.empresa.estado or '').strip().upper()
+            estado_emp_local = (certidao.empresa.estado or '').strip().upper()
             estadual_cfg = SITES_CERTIDOES.get('ESTADUAL', {})
-            if isinstance(estadual_cfg, dict) and estado_emp in estadual_cfg:
-                info_site = estadual_cfg[estado_emp].copy()
+            if isinstance(estadual_cfg, dict) and estado_emp_local in estadual_cfg:
+                info_site = estadual_cfg[estado_emp_local].copy()
             else:
                 info_site = SITES_CERTIDOES.get('ESTADUAL', {}).copy()
         else:
             info_site = SITES_CERTIDOES.get(tipo_certidao_chave, {}).copy()
-
     else:
         cidade_empresa = certidao.empresa.cidade or ''
         regra_municipio = _buscar_municipio_por_cidade(cidade_empresa)
-        
+
         if regra_municipio:
             info_site = {
                 'url': regra_municipio.url_certidao,
@@ -1133,7 +1140,7 @@ def baixar_certidao(certidao_id):
                 info_site['slow_typing'] = True
 
             if regra_municipio.automacao_ativa is False:
-                return _json_error(
+                return None, _json_error(
                     "Automação desativada para este município. Use o botão 'Abrir Site'.",
                     409,
                     status='manual_required',
@@ -1145,7 +1152,7 @@ def baixar_certidao(certidao_id):
             cidade_regra_norm = file_manager.remover_acentos(regra_municipio.nome or '').upper()
             if cidade_regra_norm == 'IMBE':
                 if imbe_tipo not in ['mobiliario', 'geral']:
-                    return _json_error(
+                    return None, _json_error(
                         'Para Imbé, selecione no modal: Certidão Municipal Mobiliário ou Geral.',
                         409,
                         status='manual_required',
@@ -1155,12 +1162,12 @@ def baixar_certidao(certidao_id):
 
             if usar_config_municipal and config_municipal.get('skip_cnpj_fill'):
                 info_site['cnpj_field_id'] = None
-            
+
         else:
-            return _json_error('Regra municipal não encontrada', 404)
+            return None, _json_error('Regra municipal não encontrada', 404)
 
     if tipo_certidao_chave == 'MUNICIPAL' and not usar_config_municipal:
-        return _json_error('Municipio sem automacao. Configure para prosseguir.', 409)
+        return None, _json_error('Municipio sem automacao. Configure para prosseguir.', 409)
 
     cnpj_limpo = _normalizar_cnpj(certidao.empresa.cnpj)
     inscricao_limpa = certidao.empresa.inscricao_mobiliaria or ''
@@ -1170,6 +1177,66 @@ def baixar_certidao(certidao_id):
         cidade_regra_norm = file_manager.remover_acentos(regra_municipio.nome or '').upper()
         if cidade_regra_norm == 'IMBE':
             nome_certidao_arquivo = _nome_certidao_imbe(nome_certidao_arquivo, imbe_tipo)
+
+    estado_emp = (certidao.empresa.estado or '').strip().upper()
+    usar_rs_autoselect = (
+        tipo_certidao_chave == 'ESTADUAL'
+        and estado_emp == 'RS'
+        and bool(info_site.get('login_cert_url'))
+    )
+
+    cfg = {
+        'tipo_certidao_chave': tipo_certidao_chave,
+        'estado_emp': estado_emp,
+        'imbe_tipo': imbe_tipo,
+        'info_site': info_site,
+        'regra_municipio': regra_municipio,
+        'config_municipal': config_municipal,
+        'usar_config_municipal': usar_config_municipal,
+        'cnpj_limpo': cnpj_limpo,
+        'inscricao_limpa': inscricao_limpa,
+        'nome_certidao_arquivo': nome_certidao_arquivo,
+        'usar_rs_autoselect': usar_rs_autoselect,
+    }
+    return cfg, None
+
+
+def _resultado_baixar_vazio():
+    return {
+        'window_closed': False,
+        'erro_500': None,
+        'arquivo_salvo_msg': None,
+        'data_encontrada': None,
+        'rs_estadual_classificacao': None,
+        'rs_estadual_msg': None,
+        'municipal_pdf_classificacao': None,
+        'municipal_pdf_msg': None,
+        'certidao_pdf_classificacao': None,
+        'certidao_pdf_msg': None,
+    }
+
+
+def _executar_automacao_baixar(certidao, cfg):
+    """Camada Selenium da emissao unitaria. Recebe a config ja montada e
+    devolve um dict 'resultado' com os flags de classificacao/arquivo (ou os
+    sinais terminais window_closed / erro_500). Nao monta resposta HTTP."""
+    tipo_certidao_chave = cfg['tipo_certidao_chave']
+    estado_emp = cfg['estado_emp']
+    info_site = cfg['info_site']
+    regra_municipio = cfg['regra_municipio']
+    config_municipal = cfg['config_municipal']
+    usar_config_municipal = cfg['usar_config_municipal']
+    cnpj_limpo = cfg['cnpj_limpo']
+    inscricao_limpa = cfg['inscricao_limpa']
+    nome_certidao_arquivo = cfg['nome_certidao_arquivo']
+    usar_rs_autoselect = cfg['usar_rs_autoselect']
+
+    by_map = steps.BY_MAP
+
+    def _get_by(key):
+        return by_map.get(key)
+
+    resultado = _resultado_baixar_vazio()
 
     driver = None
     data_encontrada = None
@@ -1191,12 +1258,6 @@ def baixar_certidao(certidao_id):
     }
 
     tempo_inicio = time.time()
-    estado_emp = (certidao.empresa.estado or '').strip().upper()
-    usar_rs_autoselect = (
-        tipo_certidao_chave == 'ESTADUAL'
-        and estado_emp == 'RS'
-        and bool(info_site.get('login_cert_url'))
-    )
 
     try:
         print(f"--- INICIANDO AUTOMAÇÃO ({tipo_certidao_chave}) ---")
@@ -1208,7 +1269,7 @@ def baixar_certidao(certidao_id):
             anonimo=not usar_rs_autoselect,
             usar_perfil=usar_rs_autoselect
         )
-        
+
         wait = WebDriverWait(driver, 20)
 
         if tipo_certidao_chave == 'ESTADUAL' and estado_emp == 'RS' and info_site.get('login_cert_url'):
@@ -1227,7 +1288,7 @@ def baixar_certidao(certidao_id):
             _configurar_download_automatico_chrome(driver)
         except Exception as exc:
             print(f"[DOWNLOAD] Falha ao reaplicar configuração de download automático: {exc}")
-        
+
         if tipo_certidao_chave == 'MUNICIPAL':
             if usar_config_municipal:
                 steps_before = config_municipal.get('before_cnpj', []) if config_municipal else []
@@ -1244,12 +1305,8 @@ def baixar_certidao(certidao_id):
                         driver.quit()
                     except Exception:
                         pass
-                    return jsonify({
-                        'status': 'window_closed_no_file',
-                        'certidao_id': certidao_id,
-                        'tipo_certidao': nome_certidao_arquivo
-                    })
-
+                    resultado['window_closed'] = True
+                    return resultado
 
         def executar_acao_aux(nome_acao):
             # 1 pre click inicial
@@ -1353,11 +1410,8 @@ def baixar_certidao(certidao_id):
                     driver.quit()
                 except Exception:
                     pass
-                return jsonify({
-                    'status': 'window_closed_no_file',
-                    'certidao_id': certidao_id,
-                    'tipo_certidao': nome_certidao_arquivo
-                })
+                resultado['window_closed'] = True
+                return resultado
 
         # ordem das ações depois do cnpj
         steps_after_cnpj = info_site.get('steps_after_cnpj')
@@ -1401,7 +1455,7 @@ def baixar_certidao(certidao_id):
                 if not download_detectado:
                     novo_arquivo = file_manager.verificar_novo_arquivo(
                         tempo_inicio)
-                    
+
                     if novo_arquivo:
                         print(f"Novo arquivo detectado: {novo_arquivo}")
                         download_detectado = True
@@ -1507,20 +1561,56 @@ def baixar_certidao(certidao_id):
                     driver.quit()
                 except Exception:
                     pass
-            return jsonify({
-                'status': 'window_closed_no_file',
-                'certidao_id': certidao_id,
-                'tipo_certidao': nome_certidao_arquivo
-            })
+            resultado['window_closed'] = True
+            return resultado
         if driver:
             try:
                 driver.quit()
             except Exception:
                 pass
-        return _json_error("Ocorreu um erro na automação.", 500)
+        resultado['erro_500'] = "Ocorreu um erro na automação."
+        return resultado
     finally:
         if rs_autoselect_temporario_ativo:
             _desativar_politica_autoselect_rs_temporaria()
+
+    resultado['arquivo_salvo_msg'] = arquivo_salvo_msg
+    resultado['data_encontrada'] = data_encontrada
+    resultado['rs_estadual_classificacao'] = rs_estadual_classificacao
+    resultado['rs_estadual_msg'] = rs_estadual_msg
+    resultado['municipal_pdf_classificacao'] = municipal_pdf_classificacao
+    resultado['municipal_pdf_msg'] = municipal_pdf_msg
+    resultado['certidao_pdf_classificacao'] = certidao_pdf_classificacao
+    resultado['certidao_pdf_msg'] = certidao_pdf_msg
+    return resultado
+
+
+def _montar_resposta_baixar(certidao, cfg, resultado):
+    """Monta a resposta HTTP final a partir do resultado da automacao.
+    Logica pura (sem Selenium): espelha o contrato JSON original."""
+    certidao_id = certidao.id
+    tipo_certidao_chave = cfg['tipo_certidao_chave']
+    regra_municipio = cfg['regra_municipio']
+    nome_certidao_arquivo = cfg['nome_certidao_arquivo']
+
+    if resultado.get('erro_500'):
+        return _json_error(resultado['erro_500'], 500)
+
+    if resultado.get('window_closed'):
+        return jsonify({
+            'status': 'window_closed_no_file',
+            'certidao_id': certidao_id,
+            'tipo_certidao': nome_certidao_arquivo
+        })
+
+    rs_estadual_classificacao = resultado['rs_estadual_classificacao']
+    rs_estadual_msg = resultado['rs_estadual_msg']
+    municipal_pdf_classificacao = resultado['municipal_pdf_classificacao']
+    municipal_pdf_msg = resultado['municipal_pdf_msg']
+    certidao_pdf_classificacao = resultado['certidao_pdf_classificacao']
+    certidao_pdf_msg = resultado['certidao_pdf_msg']
+    arquivo_salvo_msg = resultado['arquivo_salvo_msg']
+    data_encontrada = resultado['data_encontrada']
 
     response_data = {'status': 'unknown'}
 
@@ -1568,9 +1658,7 @@ def baixar_certidao(certidao_id):
             response_data['data_formatada'] = data_encontrada.strftime(
                 '%d/%m/%Y')
         else:
-            data_calc = None
-
-            data_calc = _calcular_validade_sem_data(tipo_certidao_chave, regra_municipio)
+            data_calc = _calcular_validade_sem_data(certidao, tipo_certidao_chave, regra_municipio)
 
             if data_calc:
                 print(
@@ -1587,6 +1675,24 @@ def baixar_certidao(certidao_id):
         response_data['tipo_certidao'] = nome_certidao_arquivo
 
     return jsonify(response_data)
+
+
+@bp.route('/certidao/baixar/<int:certidao_id>')
+def baixar_certidao(certidao_id):
+    file_manager.criar_chave_interrupcao()
+    certidao = Certidao.query.get_or_404(certidao_id)
+
+    erro_ou_redirect = _validar_baixar(certidao)
+    if erro_ou_redirect is not None:
+        return erro_ou_redirect
+
+    cfg, erro = _montar_config_baixar(certidao)
+    if erro is not None:
+        return erro
+
+    resultado = _executar_automacao_baixar(certidao, cfg)
+
+    return _montar_resposta_baixar(certidao, cfg, resultado)
 
 
 @bp.route('/certidao/salvar_data_confirmada', methods=['POST'])
