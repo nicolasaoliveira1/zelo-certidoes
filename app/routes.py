@@ -498,6 +498,7 @@ def dashboard():
 
     hoje = date.today()
     a_vencer_dias = get_a_vencer_dias()
+    limites_por_tipo = {t: get_a_vencer_dias(tipo=t) for t in TipoCertidao}
     if ordem not in {'urgencia', 'az', 'vencimento'}:
         ordem = 'urgencia'
 
@@ -519,19 +520,22 @@ def dashboard():
     if estado_filtro:
         query = query.filter(Empresa.estado == estado_filtro)
 
+    # Query única para cidades e estados (evita round-trip extra ao banco)
     cidades_variantes = {}
-    cidades_db = db.session.query(Empresa.cidade).all()
-    for row in cidades_db:
-        cidade = (row[0] or '').strip()
+    estados_set = set()
+    for cidade, estado in db.session.query(Empresa.cidade, Empresa.estado).all():
+        if estado:
+            estados_set.add(estado)
+        cidade = (cidade or '').strip()
         if not cidade:
             continue
-
         chave_normalizada = _normalizar_cidade_dashboard(cidade)
         if not chave_normalizada:
             continue
-
         variantes = cidades_variantes.setdefault(chave_normalizada, {})
         variantes[cidade] = variantes.get(cidade, 0) + 1
+
+    estados_disponiveis = sorted(estados_set)
 
     cidades_por_chave = {
         chave: _escolher_cidade_canonica_dashboard(variantes)
@@ -542,90 +546,53 @@ def dashboard():
         key=_normalizar_cidade_dashboard,
     )
 
-    empresas = query.order_by(Empresa.id).all()
-
+    # Filtro de cidade aplicado no banco (WHERE IN) antes de carregar certidões
     if cidade_filtro:
         chave_filtro = _normalizar_cidade_dashboard(cidade_filtro)
-        if chave_filtro:
-            empresas = [
-                empresa for empresa in empresas
-                if _normalizar_cidade_dashboard(empresa.cidade) == chave_filtro
-            ]
+        if chave_filtro and chave_filtro in cidades_variantes:
+            variantes_validas = list(cidades_variantes[chave_filtro].keys())
+            query = query.filter(Empresa.cidade.in_(variantes_validas))
             cidade_filtro = cidades_por_chave.get(chave_filtro, cidade_filtro)
+        elif chave_filtro:
+            query = query.filter(Empresa.cidade == cidade_filtro)
 
-    estados_disponiveis = [
-        row[0] for row in
-        db.session.query(Empresa.estado).distinct().order_by(Empresa.estado).all()
-    ]
+    empresas = query.order_by(Empresa.id).all()
 
-    tipo_set = None
-    if tipo_filtros and 'todas' not in tipo_filtros:
-        tipo_set = set(tipo_filtros)
-
+    # Pré-computa contadores e status de cada certidão em Python,
+    # eliminando dois loops Jinja2 por empresa no template.
+    contadores_por_empresa = {}
+    status_por_cert = {}
     certidoes_por_empresa = {}
     for empresa in empresas:
-        certidoes = list(empresa.certidoes)
-        if tipo_set:
-            certidoes = [
-                cert for cert in certidoes
-                if cert.tipo and cert.tipo.name.lower() in tipo_set
-            ]
-        certidoes_por_empresa[empresa.id] = certidoes
-
-    def _status_certidao(certidao):
-        if certidao.status_especial == StatusEspecial.PENDENTE:
-            return 'pendentes'
-        if not certidao.data_validade:
-            return 'nao_definida'
-        if certidao.data_validade < hoje:
-            return 'vencidas'
-        if certidao.status == 'amarelo':
-            return 'a_vencer'
-        return 'validas'
-
-    def _urgencia_bucket(empresa):
-        certidoes = certidoes_por_empresa.get(empresa.id, [])
-        tem_vencida = False
-        tem_a_vencer = False
-        tem_pendente = False
-        tem_nao_definida = False
-        for certidao in certidoes:
-            status = _status_certidao(certidao)
-            if status == 'vencidas':
-                tem_vencida = True
-            elif status == 'a_vencer':
-                tem_a_vencer = True
-            elif status == 'pendentes':
-                tem_pendente = True
-            elif status == 'nao_definida':
-                tem_nao_definida = True
-        if tem_vencida:
-            return 0
-        if tem_a_vencer:
-            return 1
-        if tem_pendente:
-            return 2
-        if tem_nao_definida:
-            return 3
-        return 4
-
-    def _nome_empresa(empresa):
-        return (empresa.nome or '').strip().upper()
-
-    def _menor_validade(empresa):
-        certidoes = certidoes_por_empresa.get(empresa.id, [])
-        datas = [
-            cert.data_validade for cert in certidoes
-            if cert.data_validade and cert.status_especial != StatusEspecial.PENDENTE
-        ]
-        return min(datas) if datas else date.max
-
-    if ordem == 'az':
-        empresas.sort(key=_nome_empresa)
-    elif ordem == 'vencimento':
-        empresas.sort(key=lambda emp: (_menor_validade(emp), _nome_empresa(emp)))
-    else:
-        empresas.sort(key=lambda emp: (_urgencia_bucket(emp), _nome_empresa(emp)))
+        counts = {
+            'total': 0, 'validas': 0, 'a_vencer': 0, 'vencidas': 0,
+            'pendentes': 0, 'nao_definida': 0,
+            'tipo_total': 0, 'tipo_federal': 0, 'tipo_fgts': 0,
+            'tipo_estadual': 0, 'tipo_municipal': 0, 'tipo_trabalhista': 0,
+            'menor_validade': '9999-12-31',
+        }
+        for c in empresa.certidoes:
+            if c.status_especial == StatusEspecial.PENDENTE:
+                sc = 'pendentes'
+            elif not c.data_validade:
+                sc = 'nao_definida'
+            elif c.data_validade < hoje:
+                sc = 'vencidas'
+            elif (c.data_validade - hoje).days <= limites_por_tipo[c.tipo]:
+                sc = 'a_vencer'
+            else:
+                sc = 'validas'
+            status_por_cert[c.id] = sc
+            counts['total'] += 1
+            counts[sc] += 1
+            counts['tipo_total'] += 1
+            counts['tipo_' + c.tipo.name.lower()] = counts.get('tipo_' + c.tipo.name.lower(), 0) + 1
+            if c.data_validade and sc != 'pendentes':
+                dval = c.data_validade.strftime('%Y-%m-%d')
+                if dval < counts['menor_validade']:
+                    counts['menor_validade'] = dval
+        contadores_por_empresa[empresa.id] = counts
+        certidoes_por_empresa[empresa.id] = sorted(empresa.certidoes, key=lambda c: c.ordem_exibicao)
 
     municipios = Municipio.query.all()
 
@@ -651,6 +618,9 @@ def dashboard():
     return render_template(
         'dashboard.html',
         empresas=empresas,
+        contadores_por_empresa=contadores_por_empresa,
+        status_por_cert=status_por_cert,
+        certidoes_por_empresa=certidoes_por_empresa,
         status_filtros=status_filtros,
         tipo_filtros=tipo_filtros,
         estado_filtro=estado_filtro,
@@ -1847,6 +1817,32 @@ def visualizar_certidao(token):
         as_attachment=False,
         download_name=os.path.basename(caminho)
     )
+
+
+@bp.route('/certidao/<int:certidao_id>/token-visualizar')
+def gerar_token_visualizar(certidao_id):
+    """Gera token de visualização sob demanda (lazy), evitando crypto no render do dashboard."""
+    certidao = Certidao.query.get_or_404(certidao_id)
+    caminho = certidao.caminho_arquivo
+
+    if not caminho or not os.path.exists(caminho):
+        caminho = file_manager.localizar_certidao_existente(
+            certidao.empresa.nome,
+            certidao.tipo.value,
+            certidao.subtipo.value if certidao.subtipo else None
+        )
+        if caminho:
+            certidao.caminho_arquivo = caminho
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+    if not caminho or not os.path.exists(caminho):
+        return jsonify({'erro': 'sem_arquivo'}), 404
+
+    token = _gerar_visualizar_token(certidao_id)
+    return jsonify({'url': url_for('main.visualizar_certidao', token=token)})
 
 
 @bp.route('/certidao/marcar_pendente_json/<int:certidao_id>', methods=['POST'])

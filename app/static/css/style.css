@@ -1320,3 +1320,7 @@ footer {
 .company-card.status-hidden {
     display: none;
 }
+
+tr.filter-hidden {
+    display: none;
+}

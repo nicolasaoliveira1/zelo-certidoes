@@ -222,208 +222,140 @@
     </div>
 
     <div id="lista-empresas">
-        {% set status_resultados = namespace(total=0) %}
         {% for empresa in empresas %}
+        {% set ct = contadores_por_empresa[empresa.id] %}
 
-        {% set certidoes_filtradas = [] %}
-        {% set counts = namespace(total=0, validas=0, a_vencer=0, vencidas=0, pendentes=0, nao_definida=0) %}
-        {% set counts_tipo = namespace(total=0, federal=0, fgts=0, estadual=0, municipal=0, trabalhista=0) %}
+        <div class="card mb-4 shadow-sm border-0 company-card" data-nome-empresa="{{ empresa.nome }}"
+            data-cidade-empresa="{{ empresa.cidade }}" data-estado-empresa="{{ empresa.estado }}"
+            data-search-hidden="0"
+            data-menor-validade="{{ ct['menor_validade'] }}"
+            data-count-total="{{ ct['total'] }}" data-count-validas="{{ ct['validas'] }}"
+            data-count-a-vencer="{{ ct['a_vencer'] }}" data-count-vencidas="{{ ct['vencidas'] }}"
+            data-count-pendentes="{{ ct['pendentes'] }}" data-count-nao-definida="{{ ct['nao_definida'] }}"
+            data-count-tipo-total="{{ ct['tipo_total'] }}" data-count-tipo-federal="{{ ct['tipo_federal'] }}"
+            data-count-tipo-fgts="{{ ct['tipo_fgts'] }}" data-count-tipo-estadual="{{ ct['tipo_estadual'] }}"
+            data-count-tipo-municipal="{{ ct['tipo_municipal'] }}" data-count-tipo-trabalhista="{{ ct['tipo_trabalhista'] }}">
 
-        {% for c in empresa.certidoes %}
-            {% set status_calculado = '' %}
-            {% if c.status_especial and c.status_especial.value == 'Pendente' %}
-                {% set status_calculado = 'pendentes' %}
-            {% elif not c.data_validade %}
-                {% set status_calculado = 'nao_definida' %}
-            {% elif c.data_validade < hoje %}
-                {% set status_calculado = 'vencidas' %}
-            {% elif c.status == 'amarelo' %}
-                {% set status_calculado = 'a_vencer' %}
-            {% else %}
-                {% set status_calculado = 'validas' %}
-            {% endif %}
-
-            {% set status_ok = ('todas' in status_filtros or status_calculado in status_filtros) %}
-            {% set tipo_chave = c.tipo.name | lower %}
-            {% set tipo_ok = ('todas' in tipo_filtros or tipo_chave in tipo_filtros) %}
-
-            {% if tipo_ok %}
-                {% set counts.total = counts.total + 1 %}
-                {% if status_calculado == 'validas' %}
-                    {% set counts.validas = counts.validas + 1 %}
-                {% elif status_calculado == 'a_vencer' %}
-                    {% set counts.a_vencer = counts.a_vencer + 1 %}
-                {% elif status_calculado == 'vencidas' %}
-                    {% set counts.vencidas = counts.vencidas + 1 %}
-                {% elif status_calculado == 'pendentes' %}
-                    {% set counts.pendentes = counts.pendentes + 1 %}
-                {% elif status_calculado == 'nao_definida' %}
-                    {% set counts.nao_definida = counts.nao_definida + 1 %}
-                {% endif %}
-            {% endif %}
-
-            {% if status_ok %}
-                {% set counts_tipo.total = counts_tipo.total + 1 %}
-                {% if tipo_chave == 'federal' %}
-                    {% set counts_tipo.federal = counts_tipo.federal + 1 %}
-                {% elif tipo_chave == 'fgts' %}
-                    {% set counts_tipo.fgts = counts_tipo.fgts + 1 %}
-                {% elif tipo_chave == 'estadual' %}
-                    {% set counts_tipo.estadual = counts_tipo.estadual + 1 %}
-                {% elif tipo_chave == 'municipal' %}
-                    {% set counts_tipo.municipal = counts_tipo.municipal + 1 %}
-                {% elif tipo_chave == 'trabalhista' %}
-                    {% set counts_tipo.trabalhista = counts_tipo.trabalhista + 1 %}
-                {% endif %}
-            {% endif %}
-
-            {% if status_ok and tipo_ok %}
-                {% set _ = certidoes_filtradas.append(c) %}
-            {% endif %}
-        {% endfor %}
-
-        {% set certidoes_filtradas = certidoes_filtradas | sort(attribute='ordem_exibicao') %}
-        {# SÓ MOSTRA O CARD SE HOUVER CERTIDÕES NO FILTRO #}
-        {% if certidoes_filtradas | length > 0 %}
-            {% set status_resultados.total = status_resultados.total + 1 %}
-
-            <div class="card mb-4 shadow-sm border-0 company-card" data-nome-empresa="{{ empresa.nome }}"
-                data-cidade-empresa="{{ empresa.cidade }}" data-estado-empresa="{{ empresa.estado }}"
-                data-search-hidden="0"
-                data-count-total="{{ counts.total }}" data-count-validas="{{ counts.validas }}"
-                data-count-a-vencer="{{ counts.a_vencer }}" data-count-vencidas="{{ counts.vencidas }}"
-                data-count-pendentes="{{ counts.pendentes }}" data-count-nao-definida="{{ counts.nao_definida }}"
-                data-count-tipo-total="{{ counts_tipo.total }}" data-count-tipo-federal="{{ counts_tipo.federal }}"
-                data-count-tipo-fgts="{{ counts_tipo.fgts }}" data-count-tipo-estadual="{{ counts_tipo.estadual }}"
-                data-count-tipo-municipal="{{ counts_tipo.municipal }}" data-count-tipo-trabalhista="{{ counts_tipo.trabalhista }}">
-
-                <div
-                    class="card-header bg-white border-bottom py-3 d-flex flex-wrap justify-content-between align-items-center">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="bg-primary bg-opacity-10 text-primary rounded p-2 d-flex align-items-center justify-content-center"
-                            style="width: 45px; height: 45px;">
-                            <i class="bi bi-building fs-4"></i>
-                        </div>
-                        <div>
-                            <h5 class="mb-0 fw-bold text-dark">{{ empresa.nome }}</h5>
-                            <div class="d-flex gap-3 text-muted small mt-1">
-                                <span><i class="bi bi-geo-alt me-1"></i>{{ empresa.estado }} - {{ empresa.cidade
-                                    }}</span>
-                                <button type="button"
-                                    class="btn btn-link p-0 m-0 text-muted small text-decoration-none copy-cnpj"
-                                    data-cnpj="{{ empresa.cnpj | replace('.', '') | replace('/', '') | replace('-', '') }}"
-                                    title="Copiar CNPJ"
-                                    data-bs-tooltip="true" data-bs-placement="top" data-bs-delay='{"show": 600, "hide": 100}'
-                                    aria-label="Copiar CNPJ da empresa {{ empresa.nome }}">
-                                    <i class="bi bi-card-text me-1"></i>{{ empresa.cnpj }}
-                                </button>
-                                {% if empresa.inscricao_mobiliaria %}
-                                <span><i class="bi bi-hash me-1"></i>IM: {{ empresa.inscricao_mobiliaria }}</span>
-                                {% endif %}
-                            </div>
-                        </div>
+            <div
+                class="card-header bg-white border-bottom py-3 d-flex flex-wrap justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="bg-primary bg-opacity-10 text-primary rounded p-2 d-flex align-items-center justify-content-center"
+                        style="width: 45px; height: 45px;">
+                        <i class="bi bi-building fs-4"></i>
                     </div>
-                </div>
-
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="table-light small text-uppercase text-muted">
-                                <tr>
-                                    <th class="ps-4" style="width: 25%;">Tipo</th>
-                                    <th class="text-center" style="width: 40%;">Validade / Status</th>
-                                    <th class="text-center pe-4" style="width: 35%;">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for certidao in certidoes_filtradas %}
-                                {% set data_url_final = resolve_data_url(certidao, sites_urls, urls_municipais) %}
-
-                                {% set cidade_upper = (empresa.cidade or '') | upper %}
-                                {% set sp_municipal_manual = (certidao.tipo.name == 'MUNICIPAL') and (cidade_upper in
-                                ['SAO PAULO', 'SÃO PAULO']) %}
-
-                                {% set tipo_exibicao = resolve_tipo_exibicao(certidao) %}
-
-                                <tr>
-                                    <td class="ps-4 fw-medium">{{ tipo_exibicao }}</td>
-
-                                    <td class="text-center">
-                                        {{ render_badge(certidao, hoje) }}
-                                    </td>
-
-                                    <td class="text-center pe-4">
-                                        <div class="d-flex justify-content-center gap-2">
-                                            <button type="button" class="btn btn-sm btn-outline-info border-0 btn-abrir-site"
-                                                title="Abrir Site"
-                                                data-bs-tooltip="true" data-bs-placement="top"
-                                                aria-label="Abrir site da certidao {{ tipo_exibicao }} de {{ empresa.nome }}"
-                                                data-id="{{ certidao.id }}"
-                                                data-tipo="{{ certidao.tipo.name }}" data-url="{{ data_url_final }}"
-                                                data-cnpj="{{ certidao.empresa.cnpj | replace('.', '') | replace('/', '') | replace('-', '') }}">
-                                                <i class="bi bi-box-arrow-up-right fs-5"></i>
-                                            </button>
-
-                                            <button type="button"
-                                                class="btn btn-sm btn-outline-secondary border-0 btn-visualizar-certidao"
-                                                title="Visualizar"
-                                                data-bs-tooltip="true" data-bs-placement="top"
-                                                aria-label="Visualizar certidao {{ tipo_exibicao }} de {{ empresa.nome }}"
-                                                data-url="{{ url_for('main.visualizar_certidao', token=visualizar_token(certidao.id)) }}">
-                                                <i class="bi bi-eye fs-5"></i>
-                                            </button>
-
-                                            <button type="button" class="btn btn-sm btn-outline-warning border-0" title="Editar"
-                                                data-bs-tooltip="true" data-bs-placement="top"
-                                                aria-label="Editar validade da certidao {{ tipo_exibicao }} de {{ empresa.nome }}"
-                                                data-bs-toggle="modal" data-bs-target="#editModal"
-                                                data-certidao-id="{{ certidao.id }}"
-                                                data-certidao-info="{{ tipo_exibicao }} - {{ certidao.empresa.nome }}">
-                                                <i class="bi bi-pencil-square fs-5"></i>
-                                            </button>
-
-                                            <button type="button" class="btn btn-sm btn-outline-primary border-0 btn-baixar-certidao"
-                                                title="Emitir"
-                                                data-bs-tooltip="true" data-bs-placement="top"
-                                                aria-label="Emitir certidao {{ tipo_exibicao }} de {{ empresa.nome }}"
-                                                data-href="{{ url_for('main.baixar_certidao', certidao_id=certidao.id) }}"
-                                                data-id="{{ certidao.id }}" data-tipo="{{ certidao.tipo.name }}"
-                                                data-subtipo="{{ certidao.subtipo.name | lower if certidao.subtipo else '' }}"
-                                                data-manual-only="{{ '1' if sp_municipal_manual else '0' }}"
-                                                data-status-especial="{{ certidao.status_especial.value if certidao.status_especial else '' }}">
-                                                <i class="bi bi-download fs-5"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                    <div>
+                        <h5 class="mb-0 fw-bold text-dark">{{ empresa.nome }}</h5>
+                        <div class="d-flex gap-3 text-muted small mt-1">
+                            <span><i class="bi bi-geo-alt me-1"></i>{{ empresa.estado }} - {{ empresa.cidade
+                                }}</span>
+                            <button type="button"
+                                class="btn btn-link p-0 m-0 text-muted small text-decoration-none copy-cnpj"
+                                data-cnpj="{{ empresa.cnpj | replace('.', '') | replace('/', '') | replace('-', '') }}"
+                                title="Copiar CNPJ"
+                                data-bs-tooltip="true" data-bs-placement="top" data-bs-delay='{"show": 600, "hide": 100}'
+                                aria-label="Copiar CNPJ da empresa {{ empresa.nome }}">
+                                <i class="bi bi-card-text me-1"></i>{{ empresa.cnpj }}
+                            </button>
+                            {% if empresa.inscricao_mobiliaria %}
+                            <span><i class="bi bi-hash me-1"></i>IM: {{ empresa.inscricao_mobiliaria }}</span>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
 
-        {% else %}
-            <div class="company-card status-hidden" data-nome-empresa="{{ empresa.nome }}"
-                data-cidade-empresa="{{ empresa.cidade }}" data-estado-empresa="{{ empresa.estado }}"
-                data-search-hidden="0"
-                data-count-total="{{ counts.total }}" data-count-validas="{{ counts.validas }}"
-                data-count-a-vencer="{{ counts.a_vencer }}" data-count-vencidas="{{ counts.vencidas }}"
-                data-count-pendentes="{{ counts.pendentes }}" data-count-nao-definida="{{ counts.nao_definida }}"
-                data-count-tipo-total="{{ counts_tipo.total }}" data-count-tipo-federal="{{ counts_tipo.federal }}"
-                data-count-tipo-fgts="{{ counts_tipo.fgts }}" data-count-tipo-estadual="{{ counts_tipo.estadual }}"
-                data-count-tipo-municipal="{{ counts_tipo.municipal }}" data-count-tipo-trabalhista="{{ counts_tipo.trabalhista }}"></div>
-        {% endif %} {# Fim do if certidoes_filtradas #}
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small text-uppercase text-muted">
+                            <tr>
+                                <th class="ps-4" style="width: 25%;">Tipo</th>
+                                <th class="text-center" style="width: 40%;">Validade / Status</th>
+                                <th class="text-center pe-4" style="width: 35%;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for certidao in certidoes_por_empresa[empresa.id] %}
+                            {% set data_url_final = resolve_data_url(certidao, sites_urls, urls_municipais) %}
+
+                            {% set cidade_upper = (empresa.cidade or '') | upper %}
+                            {% set sp_municipal_manual = (certidao.tipo.name == 'MUNICIPAL') and (cidade_upper in
+                            ['SAO PAULO', 'SÃO PAULO']) %}
+
+                            {% set tipo_exibicao = resolve_tipo_exibicao(certidao) %}
+
+                            <tr data-tipo="{{ certidao.tipo.name | lower }}" data-status-cert="{{ status_por_cert[certidao.id] }}">
+                                <td class="ps-4 fw-medium">{{ tipo_exibicao }}</td>
+
+                                <td class="text-center">
+                                    {{ render_badge(certidao, hoje) }}
+                                </td>
+
+                                <td class="text-center pe-4">
+                                    <div class="d-flex justify-content-center gap-2">
+                                        <button type="button" class="btn btn-sm btn-outline-info border-0 btn-abrir-site"
+                                            title="Abrir Site"
+                                            data-bs-tooltip="true" data-bs-placement="top"
+                                            aria-label="Abrir site da certidao {{ tipo_exibicao }} de {{ empresa.nome }}"
+                                            data-id="{{ certidao.id }}"
+                                            data-tipo="{{ certidao.tipo.name }}" data-url="{{ data_url_final }}"
+                                            data-cnpj="{{ certidao.empresa.cnpj | replace('.', '') | replace('/', '') | replace('-', '') }}">
+                                            <i class="bi bi-box-arrow-up-right fs-5"></i>
+                                        </button>
+
+                                        <button type="button"
+                                            class="btn btn-sm btn-outline-secondary border-0 btn-visualizar-certidao"
+                                            title="Visualizar"
+                                            data-bs-tooltip="true" data-bs-placement="top"
+                                            aria-label="Visualizar certidao {{ tipo_exibicao }} de {{ empresa.nome }}"
+                                            data-certidao-id="{{ certidao.id }}">
+                                            <i class="bi bi-eye fs-5"></i>
+                                        </button>
+
+                                        <button type="button" class="btn btn-sm btn-outline-warning border-0" title="Editar"
+                                            data-bs-tooltip="true" data-bs-placement="top"
+                                            aria-label="Editar validade da certidao {{ tipo_exibicao }} de {{ empresa.nome }}"
+                                            data-bs-toggle="modal" data-bs-target="#editModal"
+                                            data-certidao-id="{{ certidao.id }}"
+                                            data-certidao-info="{{ tipo_exibicao }} - {{ certidao.empresa.nome }}">
+                                            <i class="bi bi-pencil-square fs-5"></i>
+                                        </button>
+
+                                        <button type="button" class="btn btn-sm btn-outline-primary border-0 btn-baixar-certidao"
+                                            title="Emitir"
+                                            data-bs-tooltip="true" data-bs-placement="top"
+                                            aria-label="Emitir certidao {{ tipo_exibicao }} de {{ empresa.nome }}"
+                                            data-href="{{ url_for('main.baixar_certidao', certidao_id=certidao.id) }}"
+                                            data-id="{{ certidao.id }}" data-tipo="{{ certidao.tipo.name }}"
+                                            data-subtipo="{{ certidao.subtipo.name | lower if certidao.subtipo else '' }}"
+                                            data-manual-only="{{ '1' if sp_municipal_manual else '0' }}"
+                                            data-status-especial="{{ certidao.status_especial.value if certidao.status_especial else '' }}">
+                                            <i class="bi bi-download fs-5"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
 
         {% endfor %}
 
-        {% if empresas | length == 0 or status_resultados.total == 0 %}
+        {% if not empresas %}
         <div class="alert alert-secondary text-center py-5">
             <i class="bi bi-inbox fs-1 mb-3 d-block"></i>
             <h4>Nenhuma empresa encontrada</h4>
             <p>Tente ajustar os filtros acima.</p>
         </div>
         {% endif %}
+        <div id="sem-resultados" class="alert alert-secondary text-center py-5" style="display:none;">
+            <i class="bi bi-inbox fs-1 mb-3 d-block"></i>
+            <h4>Nenhuma empresa encontrada</h4>
+            <p>Tente ajustar os filtros acima.</p>
+        </div>
     </div>
 
     <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true"
@@ -2561,6 +2493,26 @@
                 btnsVisualizar.forEach(function (btn) {
                     btn.addEventListener('click', function (event) {
                         event.preventDefault();
+                        // Botões da tabela usam data-certidao-id (token gerado sob demanda)
+                        const certidaoId = btn.dataset.certidaoId;
+                        if (certidaoId) {
+                            fetch(`/certidao/${certidaoId}/token-visualizar`)
+                                .then(resp => {
+                                    if (!resp.ok) {
+                                        showToast('Arquivo não encontrado para esta certidão.', 'error');
+                                        return null;
+                                    }
+                                    return resp.json();
+                                })
+                                .then(data => {
+                                    if (!data) return;
+                                    const novaAba = window.open(data.url, '_blank', 'noopener');
+                                    if (novaAba) novaAba.opener = null;
+                                })
+                                .catch(() => showToast('Erro ao localizar o arquivo.', 'error'));
+                            return;
+                        }
+                        // Fallback: botão do modal usa data-url definido por atualizarBotaoVisualizar
                         const url = btn.dataset.url;
                         if (!url) {
                             showToast('Arquivo não encontrado para esta certidão.', 'error');
@@ -2570,16 +2522,12 @@
                             .then(resp => {
                                 if (resp.ok) {
                                     const novaAba = window.open(url, '_blank', 'noopener');
-                                    if (novaAba) {
-                                        novaAba.opener = null;
-                                    }
+                                    if (novaAba) novaAba.opener = null;
                                 } else {
                                     showToast('Arquivo não encontrado para esta certidão.', 'error');
                                 }
                             })
-                            .catch(() => {
-                                showToast('Erro ao localizar o arquivo.', 'error');
-                            });
+                            .catch(() => showToast('Erro ao localizar o arquivo.', 'error'));
                     });
                 });
             }
@@ -2640,90 +2588,132 @@
 
             function autoSubmit() {
                 if (formFiltro) {
-                    if (estadoSelect && estadoHidden) {
-                        estadoHidden.value = estadoSelect.value;
-                    }
-                    if (cidadeSelect && cidadeHidden) {
-                        cidadeHidden.value = cidadeSelect.value;
-                    }
-                    if (ordemSelect && ordemHidden) {
-                        ordemHidden.value = ordemSelect.value;
-                    }
-                    setTimeout(() => {
-                        formFiltro.submit();
-                    }, 100);
+                    if (estadoSelect && estadoHidden) estadoHidden.value = estadoSelect.value;
+                    if (cidadeSelect && cidadeHidden) cidadeHidden.value = cidadeSelect.value;
+                    if (ordemSelect && ordemHidden) ordemHidden.value = ordemSelect.value;
+                    setTimeout(() => { formFiltro.submit(); }, 100);
                 }
             }
 
             function aplicarOrdenacaoSalva() {
                 if (!ordemSelect) return;
-
                 const ordemSalva = localStorage.getItem(ordemStorageKey);
                 if (ordemSalva && ordemSalva !== ordemSelect.value) {
                     ordemSelect.value = ordemSalva;
-                    if (ordemHidden) {
-                        ordemHidden.value = ordemSalva;
-                    }
-                    autoSubmit();
-                    return;
                 }
-
                 if (!ordemSalva) {
                     localStorage.setItem(ordemStorageKey, ordemSelect.value);
                 }
+                ordenarCards();
+            }
+
+            function getStatusAtivos() {
+                const ativo = new Set();
+                if (todasCheckbox && todasCheckbox.checked) { ativo.add('todas'); return ativo; }
+                statusCheckboxes.forEach(cb => { if (cb && cb.checked) ativo.add(cb.value); });
+                if (ativo.size === 0) ativo.add('todas');
+                return ativo;
+            }
+
+            function getTiposAtivos() {
+                const ativo = new Set();
+                if (tipoTodasCheckbox && tipoTodasCheckbox.checked) { ativo.add('todas'); return ativo; }
+                tipoCheckboxes.forEach(cb => { if (cb && cb.checked) ativo.add(cb.value); });
+                if (ativo.size === 0) ativo.add('todas');
+                return ativo;
+            }
+
+            function aplicarFiltros() {
+                const statusAtivos = getStatusAtivos();
+                const tiposAtivos = getTiposAtivos();
+                const lista = document.getElementById('lista-empresas');
+                const semResultados = document.getElementById('sem-resultados');
+                let visiveis = 0;
+
+                document.querySelectorAll('.company-card').forEach(card => {
+                    if (card.dataset.searchHidden === '1') return;
+                    let linhasVisiveis = 0;
+                    card.querySelectorAll('tr[data-tipo]').forEach(row => {
+                        const tipoOk = tiposAtivos.has('todas') || tiposAtivos.has(row.dataset.tipo);
+                        const statusOk = statusAtivos.has('todas') || statusAtivos.has(row.dataset.statusCert);
+                        const visivel = tipoOk && statusOk;
+                        row.classList.toggle('filter-hidden', !visivel);
+                        if (visivel) linhasVisiveis++;
+                    });
+                    const cardVisivel = linhasVisiveis > 0;
+                    card.classList.toggle('status-hidden', !cardVisivel);
+                    if (cardVisivel) visiveis++;
+                });
+
+                if (semResultados) semResultados.style.display = visiveis === 0 ? '' : 'none';
+
+                const url = new URL(window.location);
+                url.searchParams.delete('status');
+                url.searchParams.delete('tipo');
+                if (!statusAtivos.has('todas')) statusAtivos.forEach(s => url.searchParams.append('status', s));
+                if (!tiposAtivos.has('todas')) tiposAtivos.forEach(t => url.searchParams.append('tipo', t));
+                history.replaceState(null, '', url);
+
+                atualizarContagensChips();
+            }
+
+            function calcUrgenciaBucket(card) {
+                if (Number(card.dataset.countVencidas) > 0) return 0;
+                if (Number(card.dataset.countAVencer) > 0) return 1;
+                if (Number(card.dataset.countPendentes) > 0) return 2;
+                if (Number(card.dataset.countNaoDefinida) > 0) return 3;
+                return 4;
+            }
+
+            function ordenarCards() {
+                const lista = document.getElementById('lista-empresas');
+                if (!lista) return;
+                const ordem = ordemSelect ? ordemSelect.value : 'urgencia';
+                const cards = Array.from(lista.querySelectorAll('.company-card'));
+                cards.sort((a, b) => {
+                    const nomeA = (a.dataset.nomeEmpresa || '').toUpperCase();
+                    const nomeB = (b.dataset.nomeEmpresa || '').toUpperCase();
+                    if (ordem === 'az') return nomeA.localeCompare(nomeB);
+                    if (ordem === 'vencimento') {
+                        const valA = a.dataset.menorValidade || '9999-12-31';
+                        const valB = b.dataset.menorValidade || '9999-12-31';
+                        if (valA !== valB) return valA.localeCompare(valB);
+                        return nomeA.localeCompare(nomeB);
+                    }
+                    const bucketDiff = calcUrgenciaBucket(a) - calcUrgenciaBucket(b);
+                    return bucketDiff !== 0 ? bucketDiff : nomeA.localeCompare(nomeB);
+                });
+                cards.forEach(card => lista.appendChild(card));
             }
 
             function atualizarContagensChips() {
                 const statusChips = document.querySelectorAll('.chip-count[data-status]');
                 const typeChips = document.querySelectorAll('.chip-count[data-type]');
-                const statusTotals = {
-                    todas: 0,
-                    validas: 0,
-                    a_vencer: 0,
-                    vencidas: 0,
-                    pendentes: 0,
-                    nao_definida: 0,
-                };
-                const typeTotals = {
-                    todas: 0,
-                    federal: 0,
-                    fgts: 0,
-                    estadual: 0,
-                    municipal: 0,
-                    trabalhista: 0,
-                };
+                const statusAtivos = getStatusAtivos();
+                const tiposAtivos = getTiposAtivos();
+                const statusTotals = { todas: 0, validas: 0, a_vencer: 0, vencidas: 0, pendentes: 0, nao_definida: 0 };
+                const typeTotals = { todas: 0, federal: 0, fgts: 0, estadual: 0, municipal: 0, trabalhista: 0 };
 
-                const cards = document.querySelectorAll('.company-card');
-                cards.forEach(card => {
-                    if (card.dataset.searchHidden === '1') return;
-
-                    statusTotals.todas += Number(card.dataset.countTotal || 0);
-                    statusTotals.validas += Number(card.dataset.countValidas || 0);
-                    statusTotals.a_vencer += Number(card.dataset.countAVencer || 0);
-                    statusTotals.vencidas += Number(card.dataset.countVencidas || 0);
-                    statusTotals.pendentes += Number(card.dataset.countPendentes || 0);
-                    statusTotals.nao_definida += Number(card.dataset.countNaoDefinida || 0);
-
-                    typeTotals.todas += Number(card.dataset.countTipoTotal || 0);
-                    typeTotals.federal += Number(card.dataset.countTipoFederal || 0);
-                    typeTotals.fgts += Number(card.dataset.countTipoFgts || 0);
-                    typeTotals.estadual += Number(card.dataset.countTipoEstadual || 0);
-                    typeTotals.municipal += Number(card.dataset.countTipoMunicipal || 0);
-                    typeTotals.trabalhista += Number(card.dataset.countTipoTrabalhista || 0);
+                document.querySelectorAll('.company-card:not(.search-hidden) tr[data-tipo]').forEach(row => {
+                    const tipo = row.dataset.tipo;
+                    const status = row.dataset.statusCert;
+                    if (tiposAtivos.has('todas') || tiposAtivos.has(tipo)) {
+                        statusTotals.todas++;
+                        if (Object.prototype.hasOwnProperty.call(statusTotals, status)) statusTotals[status]++;
+                    }
+                    if (statusAtivos.has('todas') || statusAtivos.has(status)) {
+                        typeTotals.todas++;
+                        if (Object.prototype.hasOwnProperty.call(typeTotals, tipo)) typeTotals[tipo]++;
+                    }
                 });
 
                 statusChips.forEach(chip => {
-                    const status = chip.dataset.status;
-                    if (status && Object.prototype.hasOwnProperty.call(statusTotals, status)) {
-                        chip.textContent = statusTotals[status];
-                    }
+                    const s = chip.dataset.status;
+                    if (s && Object.prototype.hasOwnProperty.call(statusTotals, s)) chip.textContent = statusTotals[s];
                 });
-
                 typeChips.forEach(chip => {
-                    const tipo = chip.dataset.type;
-                    if (tipo && Object.prototype.hasOwnProperty.call(typeTotals, tipo)) {
-                        chip.textContent = typeTotals[tipo];
-                    }
+                    const t = chip.dataset.type;
+                    if (t && Object.prototype.hasOwnProperty.call(typeTotals, t)) chip.textContent = typeTotals[t];
                 });
 
                 // a largura dos chips muda conforme a contagem; rebalanceia as linhas depois
@@ -2784,7 +2774,7 @@
                             const algumMarcado = outrasCbs.some(cb => cb && cb.checked);
                             if (!algumMarcado) todasCb.checked = true;
                         }
-                        autoSubmit();
+                        aplicarFiltros();
                     });
                 }
 
@@ -2797,7 +2787,7 @@
                                 const algumMarcado = outrasCbs.some(other => other && other.checked);
                                 if (!algumMarcado && todasCb) todasCb.checked = true;
                             }
-                            autoSubmit();
+                            aplicarFiltros();
                         });
                     }
                 });
@@ -2821,12 +2811,12 @@
             if (ordemSelect) {
                 ordemSelect.addEventListener('change', function () {
                     localStorage.setItem(ordemStorageKey, ordemSelect.value);
-                    autoSubmit();
+                    ordenarCards();
                 });
             }
 
-            atualizarContagensChips();
             aplicarOrdenacaoSalva();
+            aplicarFiltros();
 
             // rebalanceia os chips quando a largura muda (resize/zoom) e após o load das fontes/ícones
             let chipBalanceTimer = null;

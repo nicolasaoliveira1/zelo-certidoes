@@ -151,9 +151,27 @@ def _validar_dias(valor_raw):
     return v if 1 <= v <= 90 else None
 
 
+def _get_config_cached():
+    """Retorna ConfiguracaoSistema do cache flask.g (1 query por request)."""
+    try:
+        from flask import g
+        if not hasattr(g, '_config_sistema'):
+            try:
+                g._config_sistema = ConfiguracaoSistema.query.get(1)
+            except Exception:
+                g._config_sistema = None
+        return g._config_sistema
+    except RuntimeError:
+        # Fora de contexto de request (ex: scripts, testes sem request)
+        try:
+            return ConfiguracaoSistema.query.get(1)
+        except Exception:
+            return None
+
+
 def get_a_vencer_dias(tipo=None, default=7):
     try:
-        config = ConfiguracaoSistema.query.get(1)
+        config = _get_config_cached()
     except Exception:
         return default
 
