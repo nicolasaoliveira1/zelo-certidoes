@@ -1316,27 +1316,36 @@
 
                 let novaClasseBadge = 'text-bg-secondary';
                 let novoIcone = 'bi-question-circle-fill';
+                let novoStatusCert = 'nao_definida';
 
                 if (classeStatusAntiga === 'status-verde') {
                     novaClasseBadge = 'text-bg-success';
                     novoIcone = 'bi-check-circle-fill';
+                    novoStatusCert = 'validas';
                 } else if (classeStatusAntiga === 'status-vermelho') {
                     novaClasseBadge = 'text-bg-danger';
                     novoIcone = 'bi-x-circle-fill';
                     if (novoTexto && novoTexto.toLowerCase().includes('pendente')) {
                         novoIcone = 'bi-exclamation-circle-fill';
+                        novoStatusCert = 'pendentes';
+                    } else {
+                        novoStatusCert = 'vencidas';
                     }
                 } else if (classeStatusAntiga === 'status-amarelo') {
                     novaClasseBadge = 'text-bg-warning text-dark';
                     novoIcone = 'bi-exclamation-triangle-fill';
+                    novoStatusCert = 'a_vencer';
                 } else if (classeStatusAntiga === 'status-cinza') {
                     novaClasseBadge = 'text-bg-secondary';
                     novoIcone = 'bi-question-circle-fill';
+                    novoStatusCert = 'nao_definida';
                 }
 
                 badge.className = `badge rounded-pill ${novaClasseBadge} fs-6 fw-normal px-3 py-2 d-inline-flex align-items-center gap-2`;
-
                 badge.innerHTML = `<i class="bi ${novoIcone}"></i> ${novoTexto}`;
+
+                linha.dataset.statusCert = novoStatusCert;
+                atualizarContagensChips();
             }
 
             function handleDownloadResponse(data) {
