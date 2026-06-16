@@ -42,6 +42,19 @@ body.navbar-hidden .navbar {
     --sidebar-transition: 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Substitui os fundos padrão do Bootstrap (levemente amarelados em certos monitores)
+   por tons frios e neutros, padrão em sites modernos como GitHub e Stripe */
+[data-bs-theme="light"] {
+    --bs-body-bg: #ffffff;
+    --bs-body-bg-rgb: 255, 255, 255;
+    --bs-secondary-bg: #f0f3f7;
+    --bs-secondary-bg-rgb: 240, 243, 247;
+    --bs-tertiary-bg: #f6f8fb;
+    --bs-tertiary-bg-rgb: 246, 248, 251;
+    --bs-border-color: #d0d7de;
+    --bs-border-color-translucent: rgba(31, 35, 40, 0.15);
+}
+
 html, body {
     height: 100%;
 }
@@ -995,24 +1008,25 @@ footer {
 }
 
 .filter-chip {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: 0.35rem;
-    padding: 0.4rem 0.6rem;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    padding: 0.45rem 0.7rem;
     font-size: 0.82rem;
     font-weight: 600;
     border-radius: 50px;
     border: 1px solid transparent;
     cursor: pointer;
-    transition: all 0.2s ease-in-out;
-    background-color: #f8f9fa;
+    transition: transform 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+    background-color: #f0f3f7;
     color: #6c757d;
     user-select: none;
 }
 
 .filter-chip:hover {
     transform: translateY(-1px);
-    background-color: #e9ecef;
+    background-color: #e4e9f0;
 }
 
 .btn-check:focus + .filter-chip,
@@ -1030,19 +1044,20 @@ footer {
 }
 
 .filter-chip .chip-label {
-    display: inline-flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
     align-items: center;
-    gap: 0.35rem;
+    justify-content: space-between;
+    gap: 0.5rem;
+    white-space: nowrap;
 }
 
 .filter-divider {
     flex: 0 0 1px;
-    align-self: flex-start;
-    margin-top: 1.8rem;
-    height: 1.9rem;
+    align-self: stretch;
+    margin: 1.8rem 1rem 0;
     background-color: rgba(0, 0, 0, 0.12);
-    margin-left: 1rem;
-    margin-right: 1rem;
 }
 
 .filter-group {
@@ -1054,11 +1069,30 @@ footer {
     display: block;
 }
 
-/* quebra de linha forçada pelo JS para evitar chip órfão sozinho na última linha */
-.chip-break {
-    flex-basis: 100%;
+/* grid de células iguais: a posição de cada chip não depende da contagem,
+   então os números mudam sem deslocar nada (sem balanceamento via JS).
+   Colunas fixas por breakpoint -> linhas sempre equilibradas (3x2 ou 6, nunca 5+1). */
+.chip-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 230px));
+    justify-content: center;
+    gap: 0.5rem;
     width: 100%;
-    height: 0;
+}
+
+/* stacked com largura confortável (cabe os 6 sem cortar texto): uma única linha */
+@media (min-width: 1100px) and (max-width: 1639.98px) {
+    .chip-row {
+        grid-template-columns: repeat(6, minmax(0, 230px));
+    }
+}
+
+.filter-chip.chip-empty {
+    opacity: 0.45;
+}
+
+.btn-check:checked + .filter-chip.chip-empty {
+    opacity: 1;
 }
 
 
@@ -1074,9 +1108,17 @@ footer {
     .filter-divider {
         display: none;
     }
+}
+
+/* desktop largo: os dois grupos lado a lado, cada um com grade 3x2 equilibrada */
+@media (min-width: 1640px) {
+    .filter-group {
+        flex: 1 1 0;
+        min-width: 0;
+    }
 
     .chip-row {
-        justify-content: space-evenly;
+        grid-template-columns: repeat(3, minmax(0, 230px));
     }
 }
 
@@ -1095,10 +1137,14 @@ footer {
 }
 
 @media (max-width: 575.98px) {
+    .chip-row {
+        grid-template-columns: repeat(2, minmax(0, 230px));
+    }
+
     .filter-chip {
         padding: 0.34rem 0.5rem;
         font-size: 0.74rem;
-        gap: 0.3rem;
+        gap: 0.4rem;
     }
 
     .filter-chip i {
@@ -1107,9 +1153,165 @@ footer {
 
     .filter-chip .chip-count {
         font-size: 0.64rem;
-        min-width: 0.95rem;
+        min-width: 1.5rem;
         padding: 0.06rem 0.3rem;
     }
+}
+
+/* ── Bloco de filtros compacto: resumo clicável + barra + dropdown ── */
+.resumo-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.resumo-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+    color: var(--bs-body-color);
+    font-size: 0.92rem;
+    line-height: 1;
+    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.resumo-item strong { font-weight: 700; }
+.resumo-item .lbl { color: var(--bs-secondary-color); }
+
+.resumo-item .dot {
+    width: 0.62rem;
+    height: 0.62rem;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    background: var(--cor, #adb5bd);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--cor, transparent) 22%, transparent);
+}
+
+/* bolinha "apagada" quando a contagem é zero */
+.resumo-item.chip-empty .dot {
+    background: var(--bs-border-color);
+    box-shadow: none;
+}
+
+.resumo-item:hover {
+    background: var(--bs-tertiary-bg);
+    border-color: var(--bs-border-color-translucent);
+}
+
+.btn-check:checked + .resumo-item {
+    background: color-mix(in srgb, var(--cor, #6c757d) 18%, transparent);
+    border-color: color-mix(in srgb, var(--cor, #6c757d) 50%, transparent);
+}
+
+.btn-check:focus-visible + .resumo-item {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+.resumo-total { font-weight: 700; }
+.resumo-total .bi { color: var(--bs-secondary-color); }
+
+.resumo-sep {
+    width: 1px;
+    align-self: stretch;
+    min-height: 1.2rem;
+    background: var(--bs-border-color);
+    margin: 0.2rem 0.4rem;
+}
+
+.filtros-sep {
+    height: 1px;
+    background: var(--bs-border-color);
+    margin: 0.75rem 0;
+}
+
+.filtros-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.filtros-toolbar .busca { flex: 1 1 220px; min-width: 180px; }
+.filtros-toolbar > .form-select { width: auto; min-width: 130px; }
+.filtros-toolbar .order-select-input { min-width: 170px; }
+
+.filtro-dd { position: relative; }
+
+.filtro-dd-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    color: var(--bs-body-color);
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.filtro-dd.open .filtro-dd-toggle,
+.filtro-dd-toggle:focus-visible {
+    border-color: var(--bs-primary);
+    outline: none;
+}
+
+.filtro-dd-toggle .bi-chevron-down {
+    font-size: 0.72rem;
+    opacity: 0.7;
+    transition: transform 0.15s ease;
+}
+
+.filtro-dd.open .filtro-dd-toggle .bi-chevron-down { transform: rotate(180deg); }
+
+.filtro-dd-toggle .dd-badge {
+    background: var(--bs-primary);
+    color: #fff;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.05rem 0.45rem;
+    min-width: 1.3rem;
+    text-align: center;
+}
+
+.dd-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 1030;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.6rem;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+    padding: 0.5rem;
+    display: none;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.filtro-dd.open .dd-panel { display: flex; }
+
+.dd-panel .filter-chip { width: 140px; }
+
+.dd-panel .filter-chip .chip-label {
+    flex: 0 0 auto;
+    justify-content: flex-start;
+    gap: 0.4rem;
+}
+
+@media (max-width: 575.98px) {
+    .resumo-item { font-size: 0.84rem; padding: 0.28rem 0.55rem; }
+    .filtros-toolbar .busca { flex: 1 1 100%; }
+    .dd-panel { left: 0; right: auto; }
 }
 
 .order-select {
@@ -1327,11 +1529,16 @@ tr.filter-hidden {
 
 /* ── Skeleton do dashboard ─────────────────────────────────── */
 .sk-bloco {
-    background: linear-gradient(90deg, #e9ecef 25%, #dee2e6 50%, #e9ecef 75%);
+    background: linear-gradient(90deg, #e4e9f0 25%, #d5dce9 50%, #e4e9f0 75%);
     background-size: 400% 100%;
     animation: sk-wave 1.4s ease infinite;
     border-radius: 4px;
     display: block;
+}
+
+[data-bs-theme="dark"] .sk-bloco {
+    background: linear-gradient(90deg, #2a2f34 25%, #343a40 50%, #2a2f34 75%);
+    background-size: 400% 100%;
 }
 
 @keyframes sk-wave {

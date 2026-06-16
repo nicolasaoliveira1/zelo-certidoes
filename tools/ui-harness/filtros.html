@@ -56,7 +56,7 @@
                         <div class="d-flex flex-wrap justify-content-center" style="align-items: flex-start; row-gap: 1rem;">
                             <div class="filter-group">
                                 <label class="form-label fw-bold text-secondary text-uppercase small mb-2">Status</label>
-                                <div class="d-flex flex-wrap gap-1 justify-content-center chip-row">
+                                <div class="chip-row">
 
                                     <input type="checkbox" class="btn-check" id="status-todas" checked>
                                     <label class="filter-chip chip-gray" for="status-todas">
@@ -102,7 +102,7 @@
                             <div class="filter-group">
                                 <label class="form-label fw-bold text-secondary text-uppercase small mb-2">Tipo de
                                     Certidão</label>
-                                <div class="d-flex flex-wrap gap-1 justify-content-center chip-row">
+                                <div class="chip-row">
 
                                     <input type="checkbox" class="btn-check" id="tipo-todas" checked>
                                     <label class="filter-chip chip-gray" for="tipo-todas">
@@ -150,45 +150,8 @@
     </main>
 
     <script>
-        // mesma lógica do dashboard: rebalanceia linhas, evita chip órfão e centraliza título no wrap
-        function balanceChipRows(wrapper) {
-            if (!wrapper) return;
-            wrapper.querySelectorAll('.chip-break').forEach(el => el.remove());
-            const chips = Array.from(wrapper.querySelectorAll('.filter-chip'));
-            if (chips.length < 3) return;
-            const linhas = [];
-            let topoAtual = null;
-            chips.forEach(chip => {
-                const topo = chip.offsetTop;
-                if (topoAtual === null || Math.abs(topo - topoAtual) > 2) {
-                    linhas.push([]);
-                    topoAtual = topo;
-                }
-                linhas[linhas.length - 1].push(chip);
-            });
-            if (linhas.length < 2 || linhas[linhas.length - 1].length >= 2) return;
-            const porLinha = Math.ceil(chips.length / linhas.length);
-            if (porLinha < 2) return;
-            for (let i = porLinha; i < chips.length; i += porLinha) {
-                const alvo = chips[i];
-                const input = alvo.previousElementSibling;
-                const referencia = (input && input.classList.contains('btn-check')) ? input : alvo;
-                const quebra = document.createElement('div');
-                quebra.className = 'chip-break';
-                wrapper.insertBefore(quebra, referencia);
-            }
-        }
-        function balanceAllChipRows() {
-            document.querySelectorAll('.chip-row').forEach(balanceChipRows);
-        }
-        document.addEventListener('DOMContentLoaded', balanceAllChipRows);
-        window.addEventListener('load', balanceAllChipRows);
-        let _t = null;
-        window.addEventListener('resize', () => { clearTimeout(_t); _t = setTimeout(balanceAllChipRows, 120); });
-
         // expõe medição para o Playwright inspecionar o estado de cada grupo
         window.medirFiltros = function () {
-            balanceAllChipRows();
             return Array.from(document.querySelectorAll('.filter-group')).map(g => {
                 const chips = Array.from(g.querySelectorAll('.filter-chip'));
                 const tops = chips.map(c => c.offsetTop);
