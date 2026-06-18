@@ -1,6 +1,6 @@
 import enum
 from app import db
-from datetime import date
+from datetime import date, datetime
 
 
 class TipoCertidao(enum.Enum):
@@ -117,6 +117,42 @@ class Municipio(db.Model):
 
     def __repr__(self):
         return f'<Municipio {self.nome}>'
+
+
+class EventoDiagnostico(db.Model):
+    """Historico persistente de erros/avisos para o painel de diagnostico.
+    Sobrevive a reinicios do sistema (o buffer em memoria nao)."""
+    __tablename__ = 'evento_diagnostico'
+
+    id = db.Column(db.Integer, primary_key=True)
+    criado_em = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    evento = db.Column(db.String(80), nullable=False)
+    nivel = db.Column(db.String(10), nullable=False, default='ERROR')
+    error_type = db.Column(db.String(30), nullable=True)
+    alvo = db.Column(db.String(80), nullable=True)
+    mensagem = db.Column(db.String(500), nullable=True)
+    request_id = db.Column(db.String(40), nullable=True)
+    execution_id = db.Column(db.String(40), nullable=True)
+    certidao_id = db.Column(db.Integer, nullable=True)
+    empresa_id = db.Column(db.Integer, nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+            'evento': self.evento,
+            'nivel': self.nivel,
+            'error_type': self.error_type,
+            'alvo': self.alvo,
+            'mensagem': self.mensagem,
+            'request_id': self.request_id,
+            'execution_id': self.execution_id,
+            'certidao_id': self.certidao_id,
+            'empresa_id': self.empresa_id,
+        }
+
+    def __repr__(self):
+        return f'<EventoDiagnostico {self.nivel} {self.evento}>'
 
 
 class ConfiguracaoSistema(db.Model):

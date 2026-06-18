@@ -451,20 +451,69 @@
         </div>
     </div>
 
-    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <style>
+        /* Pilha de toasts: recolhidos (deck) por padrao, expandem no hover */
+        .toast-stack {
+            position: fixed;
+            right: 1rem;
+            bottom: 1rem;
+            width: 420px;
+            max-width: calc(100vw - 2rem);
+            z-index: 1090;
+        }
 
-        <div id="liveToast" class="toast align-items-center text-bg-primary border-0" role="alert" aria-live="assertive"
-            aria-atomic="true" style="min-width: 450px;" data-bs-delay="6000">
+        .toast-stack .stk-toast {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            box-sizing: border-box;
+            border-radius: .55rem;
+            color: #fff;
+            box-shadow: 0 .6rem 1.4rem rgba(0, 0, 0, .28);
+            transform-origin: bottom right;
+            transition: transform .35s cubic-bezier(.22, 1, .36, 1), opacity .3s ease;
+            will-change: transform, opacity;
+        }
 
-            <div class="d-flex">
-                <div class="toast-body fs-6 p-3" id="toastMessage">
-                </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
-                    aria-label="Close"></button>
-            </div>
-        </div>
+        .toast-stack .stk-toast.bg-success {
+            background-color: var(--bs-success);
+        }
 
-    </div>
+        .toast-stack .stk-toast.bg-danger {
+            background-color: var(--bs-danger);
+        }
+
+        .toast-stack .stk-toast.bg-primary {
+            background-color: var(--bs-primary);
+        }
+
+        .toast-stack .stk-body {
+            padding: .85rem 2.3rem .85rem 1rem;
+            font-size: 1rem;
+            line-height: 1.3;
+        }
+
+        .toast-stack .stk-close {
+            position: absolute;
+            top: .3rem;
+            right: .4rem;
+            padding: .1rem .4rem;
+            border: 0;
+            background: transparent;
+            color: #fff;
+            opacity: .75;
+            font-size: 1.15rem;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .toast-stack .stk-close:hover {
+            opacity: 1;
+        }
+    </style>
+
+    <div class="toast-stack" id="toastStack" aria-live="polite" aria-atomic="true"></div>
 
     <div class="modal fade" id="infoModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"
         data-bs-keyboard="false">
@@ -823,8 +872,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', function () {
 
-            const toastEl = document.getElementById('liveToast');
-            const toastBody = document.getElementById('toastMessage');
+            const toastStack = document.getElementById('toastStack');
 
             const tooltipTriggerList = Array.from(document.querySelectorAll('[data-bs-tooltip="true"]'));
             tooltipTriggerList.forEach((tooltipTriggerEl) => {
@@ -839,17 +887,119 @@
                 if (tooltipInstance) tooltipInstance.hide();
             });
 
+            // ---- Pilha de toasts acumulativos -------------------------------
+            const toasts = [];          // index 0 = mais novo (na frente)
+            let stackHovered = false;
+            let leaveTimer = null;
+            const PEEK = 10;            // px que cada toast de tras "espia" (recolhido)
+            const GAP = 9;             // espaco entre toasts (expandido)
+            const MAX_PEEK = 3;        // quantos toasts de tras ficam visiveis recolhidos
+            const MAX_TOASTS = 6;      // limite na pilha
+            const TOAST_DELAY = 6000;
+
+            function bgClass(type) {
+                if (type === 'success') return 'bg-success';
+                if (type === 'error') return 'bg-danger';
+                return 'bg-primary';
+            }
+
+            function reflow() {
+                let acumulado = 0;
+                toasts.forEach((t, i) => {
+                    if (t.leaving) return;
+                    let y, escala, opacidade;
+                    if (stackHovered) {
+                        y = -acumulado;
+                        escala = 1;
+                        opacidade = 1;
+                        acumulado += t.el.offsetHeight + GAP;
+                    } else {
+                        const nivel = Math.min(i, MAX_PEEK);
+                        y = -(nivel * PEEK);
+                        escala = 1 - nivel * 0.05;
+                        opacidade = i > MAX_PEEK ? 0 : 1;
+                    }
+                    t.el.style.transform = `translateY(${y}px) scale(${escala})`;
+                    t.el.style.opacity = opacidade;
+                    t.el.style.zIndex = String(1000 - i);
+                    t.el.style.pointerEvents = opacidade === 0 ? 'none' : 'auto';
+                });
+            }
+
+            function removeToast(t) {
+                if (t.leaving) return;
+                t.leaving = true;
+                clearTimeout(t.timer);
+                t.el.style.transform = 'translateX(120%)';
+                t.el.style.opacity = '0';
+                setTimeout(() => {
+                    const idx = toasts.indexOf(t);
+                    if (idx !== -1) toasts.splice(idx, 1);
+                    t.el.remove();
+                    reflow();
+                }, 350);
+            }
+
+            function scheduleDismiss(t) {
+                clearTimeout(t.timer);
+                if (stackHovered) return;   // nao some enquanto o mouse esta na pilha
+                t.timer = setTimeout(() => removeToast(t), TOAST_DELAY);
+            }
+
             function showToast(message, type = 'success') {
-                if (!toastEl) return;
-                toastBody.textContent = message;
-                toastEl.classList.remove('text-bg-primary', 'text-bg-danger', 'text-bg-success');
+                if (!toastStack) return;
 
-                if (type === 'success') toastEl.classList.add('text-bg-success');
-                else if (type === 'error') toastEl.classList.add('text-bg-danger');
-                else toastEl.classList.add('text-bg-primary');
+                const el = document.createElement('div');
+                el.className = 'stk-toast ' + bgClass(type);
+                el.setAttribute('role', 'alert');
 
-                const toastBootstrap = bootstrap.Toast.getOrCreateInstance(toastEl);
-                toastBootstrap.show();
+                const body = document.createElement('div');
+                body.className = 'stk-body';
+                body.textContent = message;
+
+                const close = document.createElement('button');
+                close.className = 'stk-close';
+                close.type = 'button';
+                close.setAttribute('aria-label', 'Fechar');
+                close.innerHTML = '&times;';
+
+                el.appendChild(body);
+                el.appendChild(close);
+
+                // estado inicial: entra de baixo
+                el.style.transform = 'translateY(24px) scale(.92)';
+                el.style.opacity = '0';
+                toastStack.appendChild(el);
+
+                const t = { el, timer: null, leaving: false };
+                toasts.unshift(t);
+                close.addEventListener('click', () => removeToast(t));
+
+                // remove os mais antigos se passar do limite
+                while (toasts.filter((x) => !x.leaving).length > MAX_TOASTS) {
+                    const antigo = [...toasts].reverse().find((x) => !x.leaving);
+                    if (antigo) removeToast(antigo); else break;
+                }
+
+                requestAnimationFrame(reflow);
+                scheduleDismiss(t);
+            }
+
+            if (toastStack) {
+                toastStack.addEventListener('mouseenter', () => {
+                    clearTimeout(leaveTimer);
+                    stackHovered = true;
+                    toasts.forEach((t) => clearTimeout(t.timer));
+                    reflow();
+                });
+                toastStack.addEventListener('mouseleave', () => {
+                    clearTimeout(leaveTimer);
+                    leaveTimer = setTimeout(() => {
+                        stackHovered = false;
+                        reflow();
+                        toasts.forEach(scheduleDismiss);
+                    }, 150);   // pequena folga evita flicker ao cruzar os vaos
+                });
             }
 
             function appendRequestId(message, requestId) {
@@ -858,7 +1008,11 @@
             }
 
             function buildErrorMessage(data, fallback) {
-                const msg = (data && data.message) ? data.message : (fallback || 'Erro');
+                let msg = (data && data.message) ? data.message : (fallback || 'Erro');
+                // mensagem ja costuma vir como "Titulo: acao"; so acrescenta a acao se vier separada
+                if (data && data.acao && msg.indexOf(data.acao) === -1) {
+                    msg = `${msg} — ${data.acao}`;
+                }
                 const requestId = data && data.request_id ? data.request_id : '';
                 return appendRequestId(msg, requestId);
             }

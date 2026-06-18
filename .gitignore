@@ -9,6 +9,7 @@ __pycache__/
 
 # Logs
 *.log
+logs/
 
 # Pasta de instância do Flask
 instance/

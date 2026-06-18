@@ -182,6 +182,7 @@
                 <i class="bi bi-bar-chart-line-fill"></i>
                 <span>Relatórios</span>
             </a>
+            {# Diagnostico fica acessivel apenas por URL direta (/diagnostico), fora do menu #}
         </nav>
         <div class="sidebar-nav-footer">
             <a class="sidebar-link {% if current_endpoint == 'main.configuracoes' %}active{% endif %}" href="{{ url_for('main.configuracoes') }}" title="Configurações">

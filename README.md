@@ -94,9 +94,12 @@ O sistema combina:
 
 ### Observabilidade e diagnóstico
 
-- Logs estruturados em JSON no terminal de execução da aplicação.
+- Logs com **saída dupla**: console legível para humano (hora, nível, domínio, evento, campos-chave e `req_id`, com cor por nível) e arquivo `logs/app.jsonl` rotativo com o JSON cru — ideal para enviar à IA.
 - `request_id` por requisição HTTP e `execution_id` por execução de lote.
-- Taxonomia inicial de erros (`TIMEOUT`, `CAPTCHA`, `PORTAL`, `SELECTOR`, `NETWORK_PATH`, `PERMISSION`, `DB`, `UNKNOWN`).
+- Taxonomia de erros (`TIMEOUT`, `CAPTCHA`, `PORTAL`, `SELECTOR`, `NETWORK_PATH`, `PERMISSION`, `DB`, `UNKNOWN`) traduzida em **mensagens acionáveis** (título + causa + ação) que chegam ao usuário no toast e carregam `error_type`/`acao` no JSON.
+- **Pré-checagens (preflight)** antes de emitir/lote: valida rede, perfil do Chrome e solver, falhando cedo com mensagem clara em vez de quebrar no meio do Selenium.
+- **Detector de padrões recorrentes**: o mesmo erro repetido no mesmo alvo abre um alerta com hipótese (provável seletor quebrado/portal fora).
+- **Painel de diagnóstico** em `GET /diagnostico`: lista os últimos erros/avisos (histórico persistido em banco, sobrevive a restart) e os alertas de recorrência.
 - Retry com limite e backoff em pontos recuperáveis (ex.: timeout de carregamento e leitura de caminho de rede).
 - Endpoint de health check em `GET /health`.
 
@@ -198,8 +201,10 @@ O caminho base pode ser configurado via variável `CAMINHO_REDE`. Ajuste conform
 
 ### Logs e health check
 
-- Os eventos de observabilidade aparecem no mesmo terminal em que o Flask está rodando.
-- Para ajustar verbosidade local, use `LOG_LEVEL` e `QUIET_WERKZEUG_LOGS` no `.env`.
+- Os eventos de observabilidade aparecem no mesmo terminal em que o Flask está rodando, em formato legível.
+- O JSON completo de cada evento é gravado em `logs/app.jsonl` (rotativo) — copie de lá para enviar à IA.
+- Para ajustar verbosidade/saída, use `LOG_LEVEL`, `QUIET_WERKZEUG_LOGS`, `LOG_CONSOLE_FORMAT` (`human`/`json`) e `LOG_JSON_FILE` no `.env`.
+- O painel `GET /diagnostico` mostra erros/avisos e alertas de recorrência. O histórico é persistido em banco (`DIAGNOSTICO_PERSISTIR`, retenção via `DIAGNOSTICO_RETENCAO_DIAS`); requer `flask db upgrade` para criar a tabela.
 - O endpoint `GET /health` retorna `ok` ou `degraded` com detalhes de:
   - banco de dados,
   - caminho de rede,
@@ -240,7 +245,7 @@ app/
   models.py                # Modelos do banco
   captcha_solver.py        # Integração 2captcha (ALTCHA e captcha de imagem)
   file_manager.py          # Detecção/movimentação de PDFs
-  errors.py                # Taxonomia de erros e mapeamento de exceções
+  errors.py                # Taxonomia de erros + descrever_erro (mensagens acionáveis)
   utils.py                 # Utilitários compartilhados (to_bool, get_config_value)
   automation/              # Pacote de automação (antes automation.py)
     __init__.py            #   reexporta SITES_CERTIDOES, VALIDADES_CERTIDOES
@@ -255,7 +260,9 @@ app/
     batch_engine.py        # Motor compartilhado de lotes
     certidao_service.py    # Operações de domínio sobre Certidão (validade/pendente)
     correlation.py         # Contexto de correlação (request_id/execution_id)
-    execution_logger.py    # Logger estruturado em JSON
+    execution_logger.py    # Logger estruturado: console legível + app.jsonl
+    diagnostics.py         # Buffer/recorrência em memória + histórico persistido
+    preflight.py           # Pré-checagens (rede/Chrome/solver) antes de emitir
     health.py              # Health checks de dependências
     retry.py               # Retry com backoff/jitter
     rs_altcha.py           # Resolver/injetar ALTCHA no RS
@@ -271,6 +278,7 @@ app/
     empresa_remover_confirm.html
     relatorios.html
     configuracoes.html
+    diagnostico.html
 ```
 
 ## Limitações atuais

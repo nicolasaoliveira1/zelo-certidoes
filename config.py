@@ -42,6 +42,13 @@ class Config:
 
     LOG_LEVEL = (os.environ.get('LOG_LEVEL') or 'INFO').strip().upper()
     QUIET_WERKZEUG_LOGS = _env_bool('QUIET_WERKZEUG_LOGS', True)
+    # Observabilidade: console legivel para humano + arquivo JSON cru para a IA
+    LOG_DIR = os.environ.get('LOG_DIR') or os.path.join(basedir, 'logs')
+    LOG_CONSOLE_FORMAT = (os.environ.get('LOG_CONSOLE_FORMAT') or 'human').strip().lower()
+    LOG_JSON_FILE = _env_bool('LOG_JSON_FILE', True)
+    # Historico de diagnostico persistido em banco (sobrevive a restart)
+    DIAGNOSTICO_PERSISTIR = _env_bool('DIAGNOSTICO_PERSISTIR', True)
+    DIAGNOSTICO_RETENCAO_DIAS = _env_int('DIAGNOSTICO_RETENCAO_DIAS', 30)
 
     RS_CERT_AUTOSELECT_ENABLED = _env_bool('RS_CERT_AUTOSELECT_ENABLED', False)
     RS_CERT_AUTOSELECT_PATTERN = os.environ.get('RS_CERT_AUTOSELECT_PATTERN') or \

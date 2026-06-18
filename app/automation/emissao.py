@@ -46,7 +46,7 @@ from app.automation.batch_state import (
     rs_batch_stop_requested as _rs_batch_stop_requested,
 )
 from app.captcha_solver import solve_normal_captcha
-from app.errors import map_exception_to_error_type
+from app.errors import map_exception_to_error_type, mensagem_usuario
 from app.models import (
     Certidao,
     Municipio,
@@ -656,7 +656,7 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False, 
             error_type=map_exception_to_error_type(exc).value,
             error=str(exc),
         )
-        return False, True, f'Erro grave no lote Estadual RS: {exc}'
+        return False, True, mensagem_usuario(exc, contexto='lote Estadual RS')
     finally:
         if criado_localmente:
             RS_BATCH_STATE['driver'] = None
@@ -1106,7 +1106,7 @@ def _emitir_municipal_certidao_lote(certidao_id, driver=None, execution_id=None)
             error_type=err_type,
             error=str(exc),
         )
-        return False, True, f'Erro grave no lote municipal: {exc}'
+        return False, True, mensagem_usuario(exc, contexto='lote municipal')
     finally:
         if local_driver and not criado_localmente:
             _fgts_fechar_abas_extras(local_driver)
@@ -1254,7 +1254,7 @@ def _emitir_fgts_certidao(certidao_id, driver=None, execution_id=None):
             error_type=map_exception_to_error_type(exc).value,
             error=str(exc),
         )
-        return False, True, f'Erro grave no FGTS: {exc}'
+        return False, True, mensagem_usuario(exc, contexto='FGTS')
     finally:
         if criado_localmente:
             FGTS_BATCH_STATE['driver'] = None

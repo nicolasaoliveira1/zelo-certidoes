@@ -6,6 +6,7 @@ import os
 import logging
 
 from app.services.execution_logger import configure_logging, log_event
+from app.services.diagnostics import attach_handler, iniciar_persistencia
 from app.services.health import run_health_checks
 
 db = SQLAlchemy()
@@ -16,10 +17,18 @@ def create_app(config_class=Config):
 
     app.config.from_object(config_class)
 
-    configure_logging(app.config.get('LOG_LEVEL', 'INFO'))
+    configure_logging(
+        app.config.get('LOG_LEVEL', 'INFO'),
+        log_dir=app.config.get('LOG_DIR'),
+        console_format=app.config.get('LOG_CONSOLE_FORMAT', 'human'),
+        json_file=app.config.get('LOG_JSON_FILE', True),
+    )
 
     if app.config.get('QUIET_WERKZEUG_LOGS', True):
         logging.getLogger('werkzeug').setLevel(logging.WARNING)
+
+    # observa o logger estruturado para o painel de diagnostico em memoria
+    attach_handler()
     
     try:
         os.makedirs(app.instance_path)
@@ -39,6 +48,10 @@ def create_app(config_class=Config):
     # models importado para registrar as tabelas no SQLAlchemy/Migrate (efeito colateral)
     from app import routes, models  # noqa: F401
     app.register_blueprint(routes.bp)
+
+    # persistencia do historico de diagnostico (thread escritora + prune inicial)
+    if app.config.get('DIAGNOSTICO_PERSISTIR', True):
+        iniciar_persistencia(app, app.config.get('DIAGNOSTICO_RETENCAO_DIAS', 30))
 
     # versiona estáticos locais com ?v=mtime para o navegador nunca servir CSS/JS desatualizado
     @app.context_processor

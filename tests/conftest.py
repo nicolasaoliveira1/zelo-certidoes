@@ -11,12 +11,22 @@ import tempfile
 # SECRET_KEY/DATABASE_URL no momento do import).
 os.environ.setdefault('SECRET_KEY', 'test')
 os.environ.setdefault('QUIET_WERKZEUG_LOGS', 'true')
+# Nao escreve arquivo de log em disco durante os testes.
+os.environ.setdefault('LOG_JSON_FILE', 'false')
+# Nao sobe a thread escritora de diagnostico nos testes (sem efeitos colaterais).
+os.environ.setdefault('DIAGNOSTICO_PERSISTIR', 'false')
 # Mantem a precondicao do lote RS deterministica (flag desligada) nos testes.
 os.environ.setdefault('RS_ALTCHA_AUTOSOLVE_ENABLED', 'false')
 
 _fd, _DBPATH = tempfile.mkstemp(suffix='.db')
 os.close(_fd)
 os.environ['DATABASE_URL'] = 'sqlite:///' + _DBPATH.replace(os.sep, '/')
+
+# Diretorio existente para que o preflight (rede/Chrome) passe de forma
+# deterministica nos testes, independente da maquina/CI.
+_TMPDIR = tempfile.mkdtemp()
+os.environ.setdefault('CAMINHO_REDE', _TMPDIR)
+os.environ.setdefault('CHROME_PROFILE_DIR', _TMPDIR)
 
 import pytest  # noqa: E402
 
