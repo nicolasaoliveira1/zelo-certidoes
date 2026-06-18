@@ -73,7 +73,7 @@ from app.models import (
     get_a_vencer_dias,
 )
 from app.utils import get_config_value as _get_config_value, to_bool as _to_bool
-from app.services import batch_engine, certidao_service, preflight
+from app.services import batch_engine, certidao_service, diagnostics, preflight
 from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
 from app.services.health import run_health_checks
@@ -442,6 +442,20 @@ def health():
     has_failure = any(not item.get('ok') for item in checks.values())
     code = 200 if not has_failure else 503
     return jsonify({'status': 'ok' if not has_failure else 'degraded', 'checks': checks}), code
+
+
+@bp.route('/diagnostico')
+def diagnostico():
+    return render_template('diagnostico.html')
+
+
+@bp.route('/diagnostico/eventos')
+def diagnostico_eventos():
+    return jsonify({
+        'status': 'ok',
+        'eventos': diagnostics.eventos_para_painel(limite=100),
+        'alertas': diagnostics.alertas_ativos(),
+    })
 
 
 @bp.route('/fgts/emitir_unico', methods=['POST'])

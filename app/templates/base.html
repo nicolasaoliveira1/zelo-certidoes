@@ -182,6 +182,10 @@
                 <i class="bi bi-bar-chart-line-fill"></i>
                 <span>Relatórios</span>
             </a>
+            <a class="sidebar-link {% if current_endpoint == 'main.diagnostico' %}active{% endif %}" href="{{ url_for('main.diagnostico') }}" title="Diagnóstico">
+                <i class="bi bi-activity"></i>
+                <span>Diagnóstico</span>
+            </a>
         </nav>
         <div class="sidebar-nav-footer">
             <a class="sidebar-link {% if current_endpoint == 'main.configuracoes' %}active{% endif %}" href="{{ url_for('main.configuracoes') }}" title="Configurações">

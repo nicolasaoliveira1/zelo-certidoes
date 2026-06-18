@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-activity me-2"></i>Diagnóstico</h4>
+    <div class="d-flex align-items-center gap-2">
+        <span id="diag-status" class="text-muted small"></span>
+        <button id="diag-refresh" class="btn btn-sm btn-outline-secondary" type="button">
+            <i class="bi bi-arrow-clockwise"></i> Atualizar
+        </button>
+    </div>
+</div>
+
+<div id="diag-alertas" class="mb-3"></div>
+
+<div class="card">
+    <div class="card-header fw-semibold">Últimos erros e avisos</div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th style="width: 150px;">Quando</th>
+                    <th style="width: 70px;">Nível</th>
+                    <th style="width: 120px;">Tipo</th>
+                    <th style="width: 110px;">Alvo</th>
+                    <th>Mensagem</th>
+                    <th style="width: 110px;">req_id</th>
+                </tr>
+            </thead>
+            <tbody id="diag-eventos">
+                <tr><td colspan="6" class="text-center text-muted py-3">Carregando…</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (function () {
+        const tbody = document.getElementById('diag-eventos');
+        const alertasEl = document.getElementById('diag-alertas');
+        const statusEl = document.getElementById('diag-status');
+        const btn = document.getElementById('diag-refresh');
+
+        const BADGE = { ERROR: 'text-bg-danger', WARNING: 'text-bg-warning', INFO: 'text-bg-secondary' };
+
+        function esc(v) {
+            const d = document.createElement('div');
+            d.textContent = (v === null || v === undefined) ? '' : String(v);
+            return d.innerHTML;
+        }
+
+        function formatarData(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            if (isNaN(d)) return esc(iso);
+            return d.toLocaleString('pt-BR');
+        }
+
+        function renderAlertas(alertas) {
+            if (!alertas || !alertas.length) { alertasEl.innerHTML = ''; return; }
+            alertasEl.innerHTML = alertas.map(a => `
+                <div class="alert alert-warning d-flex align-items-start gap-2 mb-2" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+                    <div>
+                        <strong>${esc(a.error_type)} em ${esc(a.alvo)}</strong>
+                        — ${esc(a.ocorrencias)} ocorrências.
+                        <div class="small">${esc(a.hipotese)}</div>
+                    </div>
+                </div>`).join('');
+        }
+
+        function renderEventos(eventos) {
+            if (!eventos || !eventos.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">Nenhum erro ou aviso registrado.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = eventos.map(e => {
+                const badge = BADGE[(e.nivel || '').toUpperCase()] || 'text-bg-secondary';
+                return `<tr>
+                    <td class="small">${formatarData(e.criado_em)}</td>
+                    <td><span class="badge ${badge}">${esc(e.nivel)}</span></td>
+                    <td class="small">${esc(e.error_type || '')}</td>
+                    <td class="small">${esc(e.alvo || '')}</td>
+                    <td class="small">${esc(e.mensagem || e.evento || '')}</td>
+                    <td class="small text-muted">${esc(e.request_id || '')}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function carregar() {
+            statusEl.textContent = 'atualizando…';
+            fetch('{{ url_for("main.diagnostico_eventos") }}')
+                .then(r => r.json())
+                .then(data => {
+                    renderAlertas(data.alertas);
+                    renderEventos(data.eventos);
+                    statusEl.textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-BR');
+                })
+                .catch(() => { statusEl.textContent = 'falha ao atualizar'; });
+        }
+
+        btn.addEventListener('click', carregar);
+        carregar();
+        setInterval(carregar, 15000);
+    })();
+</script>
+{% endblock %}

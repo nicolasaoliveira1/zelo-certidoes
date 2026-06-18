@@ -13,6 +13,8 @@ os.environ.setdefault('SECRET_KEY', 'test')
 os.environ.setdefault('QUIET_WERKZEUG_LOGS', 'true')
 # Nao escreve arquivo de log em disco durante os testes.
 os.environ.setdefault('LOG_JSON_FILE', 'false')
+# Nao sobe a thread escritora de diagnostico nos testes (sem efeitos colaterais).
+os.environ.setdefault('DIAGNOSTICO_PERSISTIR', 'false')
 # Mantem a precondicao do lote RS deterministica (flag desligada) nos testes.
 os.environ.setdefault('RS_ALTCHA_AUTOSOLVE_ENABLED', 'false')
 
