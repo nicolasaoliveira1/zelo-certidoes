@@ -13,7 +13,7 @@ O sistema combina:
 - Dashboard único com status das certidões por empresa.
 - Automação via Selenium para acelerar a emissão.
 - Controle de arquivos (download, movimentação e visualização).
-- Fluxos em lote para cenários de alto volume (FGTS e Estadual RS).
+- Fluxos em lote para cenários de alto volume (FGTS, Estadual RS e Municipal — Imbé/Tramandaí).
 
 ## Tecnologias
 
@@ -60,9 +60,10 @@ O sistema combina:
 - Filtros por status e busca por nome em tempo real.
 - Status visual de certidões:
   - Verde: válida
-  - Amarelo: a vencer (limite configurável)
+  - Amarelo: a vencer (limite configurável, global ou por tipo de certidão)
   - Vermelho: vencida ou pendente
   - Cinza: sem data definida
+- Cadastro de nova empresa com seleção de cidade via dropdown (apenas municípios cadastrados) e inscrição mobiliária condicional (Imbé).
 - Tela de Empresas com listagem, filtros, edição e remoção com confirmação.
 - Sidebar responsiva com estado persistente.
 - Tema claro/escuro com persistência local.
@@ -210,7 +211,7 @@ O caminho base pode ser configurado via variável `CAMINHO_REDE`. Ajuste conform
 
 ### Limite de "a vencer"
 
-Na tela de Configurações, é possível ajustar o limite de dias para uma certidão ficar "a vencer" (1 a 30 dias). O valor é global e afeta dashboard, relatórios e lotes.
+Na tela de Configurações, é possível ajustar o limite de dias para uma certidão ficar "a vencer" (1 a 90 dias). Há um valor **padrão** (aplicado a todos os tipos) e limites **opcionais por tipo** (Federal, FGTS, Estadual, Municipal e Trabalhista) que sobrepõem o padrão quando preenchidos. O limite efetivo afeta dashboard, relatórios e lotes.
 
 ### Municípios
 
@@ -234,15 +235,25 @@ As automações municipais dependem da configuração de seletores e steps na ta
     versions/
   instance/
 app/
-  __init__.py              # Inicialização Flask
-  captcha_solver.py        # Integração 2captcha
+  __init__.py              # Inicialização Flask (factory create_app)
+  routes.py                # Rotas e fluxos de negócio (blueprint 'main')
   models.py                # Modelos do banco
-  routes.py                # Rotas e fluxos de negócio
-  automation.py            # URLs, seletores e validades
+  captcha_solver.py        # Integração 2captcha (ALTCHA e captcha de imagem)
   file_manager.py          # Detecção/movimentação de PDFs
+  errors.py                # Taxonomia de erros e mapeamento de exceções
+  utils.py                 # Utilitários compartilhados (to_bool, get_config_value)
+  automation/              # Pacote de automação (antes automation.py)
+    __init__.py            #   reexporta SITES_CERTIDOES, VALIDADES_CERTIDOES
+    sites.py               #   URLs, seletores e validades padrão
+    driver.py              #   WebDriver Chrome + auto-seleção de certificado RS
+    steps.py               #   Steps municipais data-driven + mapa de localizadores
+    pdf.py                 #   Leitura/classificação de PDF
+    emissao.py             #   Emissão por tipo (FGTS/Estadual RS/Municipal)
+    batch_state.py         #   Estado e locks compartilhados dos lotes
   # stop_federal_monitor.txt é criado/removido em runtime (não versionado)
   services/
     batch_engine.py        # Motor compartilhado de lotes
+    certidao_service.py    # Operações de domínio sobre Certidão (validade/pendente)
     correlation.py         # Contexto de correlação (request_id/execution_id)
     execution_logger.py    # Logger estruturado em JSON
     health.py              # Health checks de dependências
