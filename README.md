@@ -141,7 +141,8 @@ SECRET_KEY=uma_chave_segura
 # DATABASE_URL=mysql+pymysql://usuario:senha@host/banco
 # DATABASE_URL=sqlite:///instance/database.db
 
-# Caminho de rede (opcional)
+# Caminho de rede (opcional; também configurável na tela de Configurações,
+# que tem precedência sobre esta variável)
 # CAMINHO_REDE=Z:\\PASTAS EMPRESAS
 
 # Perfil do Chrome (opcional)
@@ -162,6 +163,11 @@ SECRET_KEY=uma_chave_segura
 # CAPTCHA_2_DEFAULT_TIMEOUT=180
 # CAPTCHA_2_POLLING_INTERVAL=10
 # CAPTCHA_2_SERVER=2captcha.com
+
+# Captura de contexto na falha Selenium (screenshot + HTML em logs/selenium)
+# SELENIUM_CAPTURE_ENABLED=true
+# SELENIUM_CAPTURE_DIR=logs/selenium
+# SELENIUM_CAPTURE_RETENCAO_DIAS=14
 ```
 
 5. Rode migrations e inicie a aplicação:
@@ -191,7 +197,11 @@ Acesso local: http://localhost:5000
 
 ### Caminho de rede para salvar certidões
 
-O caminho base pode ser configurado via variável `CAMINHO_REDE`. Ajuste conforme sua estrutura de pastas de rede.
+O caminho base onde os PDFs das empresas são organizados pode ser definido de duas formas (nesta ordem de precedência): pela tela de **Configurações** (campo "Caminho de rede", salvo no banco) ou pela variável de ambiente `CAMINHO_REDE`. Sem nenhum dos dois, usa o padrão `Z:\PASTAS EMPRESAS`.
+
+### Captura de contexto na falha Selenium
+
+Quando uma automação Selenium quebra (tipicamente porque um portal mudou de estrutura), o sistema salva automaticamente um screenshot e o HTML da página em `logs/selenium/` para acelerar o diagnóstico. Controlado por `SELENIUM_CAPTURE_ENABLED` (padrão ligado), com limpeza por retenção (`SELENIUM_CAPTURE_RETENCAO_DIAS`, padrão 14 dias).
 
 ### Estadual RS e 2captcha
 
