@@ -1,5 +1,6 @@
 """Testes do HumanFormatter (saida legivel do console)."""
 import logging
+from datetime import datetime
 
 from app.services.execution_logger import HumanFormatter
 
@@ -10,16 +11,22 @@ def _registro(payload):
     return rec
 
 
+def _hora_local_esperada(ts_utc):
+    # o payload guarda UTC; o console deve exibir hora local (tz-agnostico no teste)
+    return datetime.fromisoformat(ts_utc).astimezone().strftime('%H:%M:%S')
+
+
 def test_human_formatter_renderiza_campos_chave():
+    ts = '2026-06-18T14:23:09+00:00'
     out = HumanFormatter(usar_cor=False).format(_registro({
-        'timestamp': '2026-06-18T14:23:09+00:00',
+        'timestamp': ts,
         'event': 'municipal_batch_emit_error',
         'level': 'ERROR',
         'request_id': 'a1b2c3',
         'error_type': 'PORTAL',
         'certidao_id': 7,
     }))
-    assert out.startswith('14:23:09')
+    assert out.startswith(_hora_local_esperada(ts))  # UTC convertido para hora local
     assert 'MUNI' in out           # dominio derivado do prefixo do evento
     assert 'PORTAL' in out         # error_type aparece
     assert 'certidao=7' in out

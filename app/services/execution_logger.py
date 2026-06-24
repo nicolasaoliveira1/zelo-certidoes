@@ -50,7 +50,7 @@ class HumanFormatter(logging.Formatter):
             return record.getMessage()
 
         nivel = str(p.get('level') or 'INFO').upper()
-        hora = str(p.get('timestamp') or '')[11:19] or '--:--:--'
+        hora = self._hora_local(p.get('timestamp'))
         icone = _ICONES.get(nivel, '.')
         dominio = self._dominio(p.get('event', ''))
         evento = str(p.get('event') or '')
@@ -61,6 +61,16 @@ class HumanFormatter(logging.Formatter):
         if self.usar_cor and nivel in _CORES:
             return f'{_CORES[nivel]}{linha}{_RESET}'
         return linha
+
+    @staticmethod
+    def _hora_local(ts):
+        # o payload guarda o timestamp em UTC (ISO); o console mostra hora local
+        if not ts:
+            return '--:--:--'
+        try:
+            return datetime.fromisoformat(str(ts)).astimezone().strftime('%H:%M:%S')
+        except (ValueError, TypeError):
+            return str(ts)[11:19] or '--:--:--'
 
     @staticmethod
     def _dominio(event):
