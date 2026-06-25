@@ -55,6 +55,9 @@ docs/specs/
 # Screenshots gerados pelo harness de UI (Playwright) — artefatos, não versionar
 tools/ui-harness/shots/
 
+# Claude Code — versiona .claude/skills (compartilhado); ignora config pessoal/local
+.claude/settings.local.json
+
 # Artefatos locais diversos
 Thumbs.db
 Desktop.ini
