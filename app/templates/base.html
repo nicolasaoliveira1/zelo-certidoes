@@ -439,10 +439,8 @@
         // botao voltar topo
         document.addEventListener('DOMContentLoaded', function() {
             const btnTopo = document.getElementById('btn-topo');
-            let animacaoRodando = false;
             let scrollTimeout;
             let fadeTimeout;
-            let ultimoScrollY = window.scrollY;
 
             function mostrarBotao() {
                 btnTopo.style.opacity = '1';
@@ -457,17 +455,9 @@
             }
 
             window.addEventListener('scroll', function() {
-                const mudancaScroll = Math.abs(window.scrollY - ultimoScrollY);
-                
-                if (animacaoRodando && mudancaScroll > 10) {
-                    animacaoRodando = false;
-                }
-
-                ultimoScrollY = window.scrollY;
-
                 clearTimeout(scrollTimeout);
                 clearTimeout(fadeTimeout);
-                
+
                 scrollTimeout = setTimeout(function() {
                     if (window.scrollY > 300) {
                         mostrarBotao();
@@ -479,26 +469,13 @@
 
             btnTopo.addEventListener('click', function(e) {
                 e.preventDefault();
-                animacaoRodando = true;
-                
-                const scrollToTop = () => {
-                    if (!animacaoRodando) {
-                        return;
-                    }
-
-                    const scrollTop = window.scrollY;
-                    
-                    if (scrollTop <= 1) {
-                        window.scrollBy(0, -scrollTop);
-                        animacaoRodando = false;
-                        return;
-                    }
-                    
-                    window.scrollBy(0, -scrollTop / 6);
-                    ultimoScrollY = window.scrollY;
-                    requestAnimationFrame(scrollToTop);
-                };
-                scrollToTop();
+                // Usa o scroll nativo: respeita a preferência de movimento do
+                // usuário e funciona com ou sem animações do SO ativadas. O
+                // antigo loop manual (scrollBy a cada frame) brigava com o
+                // smooth scroll nativo quando as animações do Windows estavam
+                // ligadas, fazendo a rolagem arrastar pixel a pixel.
+                const reduzirMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                window.scrollTo({ top: 0, behavior: reduzirMovimento ? 'auto' : 'smooth' });
             });
         });
 
