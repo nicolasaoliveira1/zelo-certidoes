@@ -1,3 +1,170 @@
+/* ══════════════════════════════════════════════════════════════
+   Zelo — design tokens (Fase 0 do plano docs/IDENTIDADE_ZELO.md)
+   Identidade monocromática: chrome grafite, status como única cor.
+   ══════════════════════════════════════════════════════════════ */
+:root {
+    /* chrome monocromático */
+    --zelo-ink: #16181C;
+    --zelo-graphite: #2B2F36;
+    --zelo-slate: #6B7280;
+    --zelo-line: #E3E6EB;
+    --zelo-mist: #F5F6F8;
+    --zelo-paper: #FFFFFF;
+
+    /* status (a única cromaticidade) — light */
+    --zelo-ok: #2E7D52;
+    --zelo-warn: #B07408;
+    --zelo-danger: #B23A33;
+    --zelo-muted: #9AA1AB;
+    /* "pendente" tem tom próprio (provável débito) — distinto de "vencida" */
+    --zelo-pend: #C2622A;
+
+    /* status — banda suave de fundo (date-cell / linha); só a cor fala, texto fica neutro */
+    --zelo-ok-soft: color-mix(in srgb, var(--zelo-ok) 16%, var(--zelo-paper));
+    --zelo-warn-soft: color-mix(in srgb, var(--zelo-warn) 18%, var(--zelo-paper));
+    --zelo-danger-soft: color-mix(in srgb, var(--zelo-danger) 16%, var(--zelo-paper));
+    --zelo-muted-soft: color-mix(in srgb, var(--zelo-muted) 22%, var(--zelo-paper));
+
+    /* ação primária (grafite no claro: fundo escuro, texto branco) */
+    --zelo-action-bg: var(--zelo-graphite);
+    --zelo-action-fg: #ffffff;
+    --zelo-action-hover-bg: var(--zelo-ink);
+
+    /* botão "voltar ao topo" (sempre escuro + ícone branco) */
+    --zelo-fab-bg: #2B2F36;
+    --zelo-fab-hover: #16181C;
+
+    /* tipografia — superfamília IBM Plex */
+    --zelo-font-display: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+    --zelo-font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --zelo-font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+
+    /* mapeamento Bootstrap → Zelo */
+    --bs-body-font-family: var(--zelo-font-body);
+    --bs-primary: #2B2F36;
+    --bs-primary-rgb: 43, 47, 54;
+    --bs-link-color: #2B2F36;
+    --bs-link-color-rgb: 43, 47, 54;
+    --bs-link-hover-color: #16181C;
+    --bs-link-hover-color-rgb: 22, 24, 28;
+    /* "subtle" do primário (ex.: item ativo do menu) — neutraliza o azul herdado */
+    --bs-primary-bg-subtle: #ECEEF1;
+    --bs-primary-border-subtle: #CDD2D9;
+    --bs-primary-text-emphasis: #2B2F36;
+}
+
+[data-bs-theme="dark"] {
+    --zelo-ink: #F2F4F7;
+    --zelo-graphite: #E2E5EA;
+    --zelo-slate: #9BA3AD;
+    --zelo-line: #2A2F35;
+    --zelo-mist: #16191D;
+    --zelo-paper: #0F1115;
+
+    --zelo-ok: #4FB07E;
+    --zelo-warn: #E0A642;
+    --zelo-danger: #E8736B;
+    --zelo-muted: #6B7280;
+    --zelo-pend: #D98A52;
+
+    --zelo-ok-soft: color-mix(in srgb, var(--zelo-ok) 22%, var(--zelo-paper));
+    --zelo-warn-soft: color-mix(in srgb, var(--zelo-warn) 22%, var(--zelo-paper));
+    --zelo-danger-soft: color-mix(in srgb, var(--zelo-danger) 22%, var(--zelo-paper));
+    --zelo-muted-soft: color-mix(in srgb, var(--zelo-muted) 26%, var(--zelo-paper));
+
+    /* ação primária no escuro: botão claro, texto escuro */
+    --zelo-action-bg: #E2E5EA;
+    --zelo-action-fg: #16181C;
+    --zelo-action-hover-bg: #FFFFFF;
+
+    --zelo-fab-bg: #343A40;
+    --zelo-fab-hover: #424A52;
+
+    --bs-primary: #AEB6C0;
+    --bs-primary-rgb: 174, 182, 192;
+    --bs-link-color: #C9CFD7;
+    --bs-link-color-rgb: 201, 207, 215;
+    --bs-link-hover-color: #FFFFFF;
+    --bs-link-hover-color-rgb: 255, 255, 255;
+    --bs-primary-bg-subtle: #20242A;
+    --bs-primary-border-subtle: #343A42;
+    --bs-primary-text-emphasis: #E2E5EA;
+}
+
+/* ação primária — .btn-primary não reage a --bs-primary (cores estáticas do BS) */
+.btn-primary {
+    --bs-btn-color: var(--zelo-action-fg);
+    --bs-btn-bg: var(--zelo-action-bg);
+    --bs-btn-border-color: var(--zelo-action-bg);
+    --bs-btn-hover-color: var(--zelo-action-fg);
+    --bs-btn-hover-bg: var(--zelo-action-hover-bg);
+    --bs-btn-hover-border-color: var(--zelo-action-hover-bg);
+    --bs-btn-active-color: var(--zelo-action-fg);
+    --bs-btn-active-bg: var(--zelo-action-hover-bg);
+    --bs-btn-active-border-color: var(--zelo-action-hover-bg);
+    --bs-btn-disabled-color: var(--zelo-action-fg);
+    --bs-btn-disabled-bg: var(--zelo-action-bg);
+    --bs-btn-disabled-border-color: var(--zelo-action-bg);
+}
+
+/* botões de ação semânticos — mesma convenção (criar=verde / destrutivo=vermelho),
+   mas nos tons de status refinados do Zelo; fill sólido com texto branco legível
+   nos dois temas (usa os valores "light" dos tokens, que sustentam #fff). */
+.btn-success {
+    --bs-btn-color: #fff;
+    --bs-btn-bg: #2E7D52;
+    --bs-btn-border-color: #2E7D52;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: #266b46;
+    --bs-btn-hover-border-color: #266b46;
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: #21603f;
+    --bs-btn-active-border-color: #21603f;
+    --bs-btn-disabled-color: #fff;
+    --bs-btn-disabled-bg: #2E7D52;
+    --bs-btn-disabled-border-color: #2E7D52;
+}
+
+.btn-danger {
+    --bs-btn-color: #fff;
+    --bs-btn-bg: #B23A33;
+    --bs-btn-border-color: #B23A33;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: #9c322c;
+    --bs-btn-hover-border-color: #9c322c;
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: #8a2c27;
+    --bs-btn-active-border-color: #8a2c27;
+    --bs-btn-disabled-color: #fff;
+    --bs-btn-disabled-bg: #B23A33;
+    --bs-btn-disabled-border-color: #B23A33;
+}
+
+/* foco de inputs em grafite (remove o glow azul estático do Bootstrap) */
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.18);
+}
+
+/* tipografia da identidade */
+.nav-title {
+    font-family: var(--zelo-font-display);
+    letter-spacing: 0.04em;
+}
+
+h1, h2, .h1, .h2 {
+    font-family: var(--zelo-font-display);
+    letter-spacing: -0.01em;
+}
+
+/* dados tabulares em mono (CNPJ, datas) */
+.copy-cnpj,
+.date-cell {
+    font-family: var(--zelo-font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
 .navbar-toggler {
     display: block !important;
     border: 1px solid rgba(33, 37, 41, 0.15);
@@ -163,8 +330,12 @@ body.navbar-hidden.sidebar-open .sidebar-toggle-menu {
 }
 
 .sidebar-title {
-    font-size: 0.95rem;
-    letter-spacing: 0.02em;
+    font-family: var(--zelo-font-display);
+    font-size: 1.15rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--bs-emphasis-color);
+    line-height: 1;
 }
 
 .sidebar-nav {
@@ -520,18 +691,19 @@ footer {
 }
 
 .batch-kpi-card.is-danger {
-    border-color: rgba(220, 53, 69, 0.25);
-    background: rgba(220, 53, 69, 0.06);
+    border-color: color-mix(in srgb, var(--zelo-danger) 30%, transparent);
+    background: color-mix(in srgb, var(--zelo-danger) 8%, transparent);
 }
 
 .batch-kpi-card.is-warning {
-    border-color: rgba(255, 193, 7, 0.35);
-    background: rgba(255, 193, 7, 0.12);
+    border-color: color-mix(in srgb, var(--zelo-warn) 35%, transparent);
+    background: color-mix(in srgb, var(--zelo-warn) 12%, transparent);
 }
 
+/* "total" não é status — fica neutro grafite, não azul */
 .batch-kpi-card.is-total {
-    border-color: rgba(13, 110, 253, 0.28);
-    background: rgba(13, 110, 253, 0.08);
+    border-color: color-mix(in srgb, var(--zelo-ink) 22%, transparent);
+    background: color-mix(in srgb, var(--zelo-ink) 6%, transparent);
 }
 
 .batch-kpi-label {
@@ -610,44 +782,7 @@ footer {
     padding-right: 2rem !important;
 }
 
-.logo-full {
-    display: block !important;
-}
-
-.logo-compact {
-    display: none !important;
-}
-
-@media (max-width: 900px) {
-    .logo-full {
-        display: none !important;
-    }
-    .logo-compact {
-        display: block !important;
-    }
-}
-
-.logo-navbar-compact {
-    max-width: 50px;
-    width: 100%;
-    height: auto;
-    transition: max-width 0.2s;
-    display: none !important;
-}
-
-[data-bs-theme="light"] .logo-navbar-compact.logo-light {
-    display: inline-block !important;
-}
-
-[data-bs-theme="dark"] .logo-navbar-compact.logo-dark {
-    display: inline-block !important;
-}
-
-@media (max-width: 900px) {
-    .logo-navbar-compact {
-        max-width: 50px;
-    }
-}
+/* logo única na navbar (.logo-brand); o swap claro/escuro fica nas regras .logo-light/.logo-dark abaixo */
 
 .logo-light, .logo-dark {
     display: none !important;
@@ -661,28 +796,23 @@ footer {
     display: inline-block !important;
 }
 
+/* logo circular da Assecon na navbar — dimensionada pela altura */
 .logo-navbar {
-    max-width: 190px;
-    width: 100%;
-    height: auto;
-    transition: max-width 0.2s;
+    height: 38px;
+    width: auto;
+    max-width: none;
+    transition: height 0.2s;
 }
 
 @media (max-width: 1200px) {
     .logo-navbar {
-        max-width: 140px;
-    }
-}
-
-@media (max-width: 900px) {
-    .logo-navbar {
-        max-width: 100px;
+        height: 32px;
     }
 }
 
 @media (max-width: 600px) {
     .logo-navbar {
-        max-width: 90px;
+        height: 28px;
     }
 }
 
@@ -693,6 +823,8 @@ footer {
     letter-spacing: 0.5px;
     line-height: 1.1;
     white-space: nowrap;
+    /* compensa a assimetria vertical da serif (centro óptico ficava ~baixo) */
+    transform: translateY(-0.05em);
     transition: font-size 0.2s, margin 0.2s;
 }
 
@@ -718,8 +850,8 @@ footer {
 }
 
 .theme-toggle-svg {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     transition: width 0.2s, height 0.2s;
 }
 
@@ -745,8 +877,8 @@ footer {
 }
 
 .menu-button {
-    width: 40px;
-    height: 36px;
+    width: 36px;
+    height: 32px;
     padding: 0;
     transition: width 0.2s, height 0.2s;
     border: 0px;
@@ -756,13 +888,13 @@ footer {
 .sidebar-toggle-menu .menu-icon {
     line-height: 1;
     display: inline-block;
-    transform: scaleX(1.3);
+    transform: scaleX(1.15);
     transform-origin: center;
     transition: font-size 0.2s, transform 0.2s;
 }
 
 .menu-button .menu-icon {
-    font-size: 1.8rem;
+    font-size: 1.45rem;
     margin-top: 0;
 }
 
@@ -880,7 +1012,7 @@ footer {
 }
 
 .copy-cnpj:focus-visible {
-    outline: 2px solid rgba(13, 110, 253, 0.3);
+    outline: 2px solid rgba(var(--bs-primary-rgb), 0.35);
     outline-offset: 2px;
     border-radius: 0.25rem;
 }
@@ -904,28 +1036,25 @@ footer {
     color: var(--bs-body-color) !important;
 }
 
+/* banda de status no dark: a cor está no fundo; o texto fica neutro (herda body) */
 [data-bs-theme="dark"] tr.status-verde > td:nth-last-child(2),
 [data-bs-theme="dark"] tr.status-verde > td:nth-last-child(3) {
-    background-color: #147945 !important;
-    color: #a3cfbb !important;
+    background-color: var(--zelo-ok-soft) !important;
 }
 
 [data-bs-theme="dark"] tr.status-vermelho > td:nth-last-child(2),
 [data-bs-theme="dark"] tr.status-vermelho > td:nth-last-child(3) {
-    background-color: #7e1e26 !important;
-    color: #ea868f !important;
+    background-color: var(--zelo-danger-soft) !important;
 }
 
 [data-bs-theme="dark"] tr.status-amarelo > td:nth-last-child(2),
 [data-bs-theme="dark"] tr.status-amarelo > td:nth-last-child(3) {
-    background-color: #a3831b !important;
-    color: #ffe69c !important;
+    background-color: var(--zelo-warn-soft) !important;
 }
 
 [data-bs-theme="dark"] tr.status-cinza > td:nth-last-child(2),
 [data-bs-theme="dark"] tr.status-cinza > td:nth-last-child(3) {
-    background-color: #343a40 !important;
-    color: #adb5bd !important;
+    background-color: var(--zelo-muted-soft) !important;
 }
 
 [data-bs-theme="dark"] .app-sidebar {
@@ -1066,10 +1195,15 @@ footer {
     background-color: #e4e9f0;
 }
 
-.btn-check:focus + .filter-chip,
-.btn-check:focus-visible + .filter-chip {
+.btn-check:focus + .filter-chip {
     outline: none;
     box-shadow: none;
+}
+
+/* foco de teclado visível no chip (a11y — Fase 5) */
+.btn-check:focus-visible + .filter-chip {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
 }
 
 .btn-check:checked + .filter-chip:hover {
@@ -1310,8 +1444,8 @@ footer {
 .filtro-dd.open .filtro-dd-toggle .bi-chevron-down { transform: rotate(180deg); }
 
 .filtro-dd-toggle .dd-badge {
-    background: var(--bs-primary);
-    color: #fff;
+    background: var(--zelo-action-bg);
+    color: var(--zelo-action-fg);
     border-radius: 999px;
     font-size: 0.68rem;
     font-weight: 700;
@@ -1381,64 +1515,46 @@ footer {
 }
 
 .btn-check:checked + .chip-green {
-    background-color: #198754 !important;
+    background-color: var(--zelo-ok) !important;
     color: #fff;
-    box-shadow: 0 4px 10px rgba(25, 135, 84, 0.3);
+    box-shadow: 0 4px 10px color-mix(in srgb, var(--zelo-ok) 30%, transparent);
 }
 
 .btn-check:checked + .chip-yellow {
-    background-color: #ffc107 !important;
-    color: #000;
-    box-shadow: 0 4px 10px rgba(255, 193, 7, 0.3);
+    background-color: var(--zelo-warn) !important;
+    color: #fff;
+    box-shadow: 0 4px 10px color-mix(in srgb, var(--zelo-warn) 30%, transparent);
 }
 
 .btn-check:checked + .chip-red {
-    background-color: #dc3545 !important;
+    background-color: var(--zelo-danger) !important;
     color: #fff;
-    box-shadow: 0 4px 10px rgba(220, 53, 69, 0.3);
+    box-shadow: 0 4px 10px color-mix(in srgb, var(--zelo-danger) 30%, transparent);
 }
 
 .btn-check:checked + .chip-red-outline {
-    background-color: #fff !important;
-    border-color: #dc3545;
-    color: #dc3545;
-    box-shadow: 0 4px 10px rgba(220, 53, 69, 0.15);
+    background-color: var(--zelo-paper) !important;
+    border-color: var(--zelo-danger);
+    color: var(--zelo-danger);
+    box-shadow: 0 4px 10px color-mix(in srgb, var(--zelo-danger) 15%, transparent);
 }
 
 .btn-check:checked + .chip-nao-definida {
-    background-color: #5a7f9d !important;
+    background-color: var(--zelo-muted) !important;
     color: #fff;
-    box-shadow: 0 4px 10px rgba(90, 127, 157, 0.3);
+    box-shadow: 0 4px 10px color-mix(in srgb, var(--zelo-muted) 30%, transparent);
 }
 
-.btn-check:checked + .chip-federal {
-    background-color: #0d6efd !important;
-    color: #fff;
-    box-shadow: 0 4px 10px rgba(13, 110, 253, 0.3);
-}
-
-.btn-check:checked + .chip-fgts {
-    background-color: #0dcaf0 !important;
-    color: #000;
-    box-shadow: 0 4px 10px rgba(13, 202, 240, 0.3);
-}
-
-.btn-check:checked + .chip-estadual {
-    background-color: #6f42c1 !important;
-    color: #fff;
-    box-shadow: 0 4px 10px rgba(111, 66, 193, 0.3);
-}
-
-.btn-check:checked + .chip-municipal {
-    background-color: #fd7e14 !important;
-    color: #fff;
-    box-shadow: 0 4px 10px rgba(253, 126, 20, 0.3);
-}
-
+/* Fase 3 — tipo é monocromático: a cor fica reservada ao status.
+   O ícone + rótulo de cada chip já identificam o tipo; cor seria decoração. */
+.btn-check:checked + .chip-federal,
+.btn-check:checked + .chip-fgts,
+.btn-check:checked + .chip-estadual,
+.btn-check:checked + .chip-municipal,
 .btn-check:checked + .chip-trabalhista {
-    background-color: #20c997 !important;
-    color: #fff;
-    box-shadow: 0 4px 10px rgba(32, 201, 151, 0.3);
+    background-color: var(--zelo-action-bg) !important;
+    color: var(--zelo-action-fg);
+    box-shadow: 0 4px 10px color-mix(in srgb, var(--zelo-ink) 22%, transparent);
 }
 
 [data-bs-theme="dark"] .filter-chip {
@@ -1470,11 +1586,6 @@ footer {
     background-color: #495057 !important;
 }
 
-[data-bs-theme="dark"] .btn-check:checked + .chip-red-outline {
-    background-color: #fff !important;
-    border-color: #dc3545;
-    color: #dc3545;
-}
 
 [data-bs-theme="dark"] .form-select {
     background-color: #212529;
@@ -1504,7 +1615,7 @@ footer {
     width: clamp(32px, 4vw, 52px);
     height: clamp(32px, 4vw, 52px);
     border-radius: 50%;
-    background-color: var(--bs-primary);
+    background-color: var(--zelo-fab-bg);
     color: white;
     border: none;
     cursor: pointer;
@@ -1525,7 +1636,7 @@ footer {
 }
 
 .btn-voltar-topo:hover {
-    background-color: #0b5ed7;
+    background-color: var(--zelo-fab-hover);
     transform: translateY(-3px);
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
 }
@@ -1548,11 +1659,11 @@ footer {
 }
 
 [data-bs-theme="dark"] .btn-voltar-topo {
-    background-color: #0d6efd;
+    background-color: var(--zelo-fab-bg);
 }
 
 [data-bs-theme="dark"] .btn-voltar-topo:hover {
-    background-color: #0a58ca;
+    background-color: var(--zelo-fab-hover);
 }
 
 .company-card.search-hidden,
@@ -1560,16 +1671,11 @@ footer {
     display: none;
 }
 
-/* ── Status de validade — legível em light e dark ── */
-.cert-status-ok      { color: #1a7f4b; }
-.cert-status-warn    { color: #8a5e00; }
-.cert-status-danger  { color: #c0392b; }
-.cert-status-muted   { color: #6c757d; }
-
-[data-bs-theme="dark"] .cert-status-ok     { color: #4fc98a; }
-[data-bs-theme="dark"] .cert-status-warn   { color: #f0b429; }
-[data-bs-theme="dark"] .cert-status-danger { color: #f07070; }
-[data-bs-theme="dark"] .cert-status-muted  { color: #9ba3ad; }
+/* ── Status de validade — tokens Zelo trocam sozinhos por tema ── */
+.cert-status-ok      { color: var(--zelo-ok); }
+.cert-status-warn    { color: var(--zelo-warn); }
+.cert-status-danger  { color: var(--zelo-danger); }
+.cert-status-muted   { color: var(--zelo-muted); }
 
 /* ── Barra lateral de status por linha ── */
 td.cert-tipo-col {
@@ -1587,19 +1693,13 @@ td.cert-tipo-col::before {
     border-radius: 3px;
 }
 
-tr[data-status-cert="validas"]      td.cert-tipo-col::before { background: #1a7f4b; }
-tr[data-status-cert="a_vencer"]     td.cert-tipo-col::before { background: #c07800; }
+/* espinha-assinatura: tokens Zelo (trocam por tema sozinhos) */
+tr[data-status-cert="validas"]      td.cert-tipo-col::before { background: var(--zelo-ok); }
+tr[data-status-cert="a_vencer"]     td.cert-tipo-col::before { background: var(--zelo-warn); }
 tr[data-status-cert="vencidas"]     td.cert-tipo-col::before,
-tr[data-status-cert="pendentes"]    td.cert-tipo-col::before { background: #b92b27; }
+tr[data-status-cert="pendentes"]    td.cert-tipo-col::before { background: var(--zelo-danger); }
 tr[data-status-cert="nao_definida"] td.cert-tipo-col::before,
-tr[data-status-cert="cinza"]        td.cert-tipo-col::before { background: #ced4da; }
-
-[data-bs-theme="dark"] tr[data-status-cert="validas"]      td.cert-tipo-col::before { background: #2d9e5f; }
-[data-bs-theme="dark"] tr[data-status-cert="a_vencer"]     td.cert-tipo-col::before { background: #d97706; }
-[data-bs-theme="dark"] tr[data-status-cert="vencidas"]     td.cert-tipo-col::before,
-[data-bs-theme="dark"] tr[data-status-cert="pendentes"]    td.cert-tipo-col::before { background: #c0392b; }
-[data-bs-theme="dark"] tr[data-status-cert="nao_definida"] td.cert-tipo-col::before,
-[data-bs-theme="dark"] tr[data-status-cert="cinza"]        td.cert-tipo-col::before { background: #4b5563; }
+tr[data-status-cert="cinza"]        td.cert-tipo-col::before { background: var(--zelo-muted); }
 
 tr.filter-hidden {
     display: none;
@@ -1643,4 +1743,77 @@ tr.filter-hidden {
 
 #filtros-card.chips-loading .chip-count {
     opacity: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Zelo — header da sidebar é contextual
+   Recolhe quando a navbar está à vista (ela já carrega marca + controle);
+   reaparece quando a navbar some no scroll, trazendo logo + "Zelo" + botão.
+   Assim não há "Zelo" duplicado em nenhum estado.
+   ══════════════════════════════════════════════════════════════ */
+.sidebar-header {
+    overflow: hidden;
+    transition: max-height var(--sidebar-transition),
+                opacity var(--sidebar-transition),
+                padding-top var(--sidebar-transition),
+                padding-bottom var(--sidebar-transition);
+}
+
+/* navbar visível → header recolhido e fora da ordem de foco */
+body:not(.navbar-hidden) .sidebar-header {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-bottom-width: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+body:not(.navbar-hidden) .sidebar-toggle-menu {
+    display: none !important;
+}
+
+/* navbar escondida → header revela com transição suave */
+body.navbar-hidden .sidebar-header {
+    max-height: 120px;
+    opacity: 1;
+}
+
+/* ── Zelo: hambúrguer da navbar alinhado à coluna do rail recolhido ──
+   Caixa com a largura exata do rail, encostada na borda esquerda (a
+   margem negativa cancela o px-4 + mx-1 do container), ícone centrado.
+   Resultado: o botão fica na mesma coluna vertical dos ícones do rail
+   (centro em --sidebar-collapsed-width / 2) e centrado na vertical. */
+@media (min-width: 901px) {
+    .navbar-toggler.menu-button {
+        width: var(--sidebar-collapsed-width);
+        height: 40px;
+        margin-left: -1.75rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Zelo — respeito a prefers-reduced-motion (Fase 5)
+   Quem pede menos movimento perde animações/transições (incl. o
+   "wave" do skeleton e os micro-lifts de hover), mantendo a UI utilizável.
+   ══════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .filter-chip:hover,
+    .resumo-item:hover,
+    .btn-check:checked + .filter-chip:hover {
+        transform: none;
+    }
 }

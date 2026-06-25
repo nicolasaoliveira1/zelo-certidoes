@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pt-br" data-bs-theme="light">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Harness status Zelo (Fase 2)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../app/static/css/style.css">
+    <style>
+        /* date-cells (replicado do <style> inline do base.html) */
+        .status-verde .date-cell   { background-color: var(--zelo-ok-soft) !important; }
+        .status-amarelo .date-cell { background-color: var(--zelo-warn-soft) !important; }
+        .status-vermelho .date-cell{ background-color: var(--zelo-danger-soft) !important; }
+        .status-cinza .date-cell   { background-color: var(--zelo-muted-soft) !important; }
+        body { padding: 1.5rem; }
+        .demo-wrap { max-width: 920px; }
+    </style>
+</head>
+<body>
+<div class="demo-wrap">
+    <h2 class="mb-3">Status — Fase 2/3</h2>
+
+    <!-- resumo (status = mantém cor, tons refinados) -->
+    <div class="resumo-strip mb-3" aria-label="Resumo">
+        <input type="checkbox" class="btn-check" id="r0" checked>
+        <label class="resumo-item resumo-total" for="r0"><i class="bi bi-collection"></i> <strong class="chip-count">128</strong> <span class="lbl">certidões</span></label>
+        <span class="resumo-sep"></span>
+        <input type="checkbox" class="btn-check" id="r1" checked>
+        <label class="resumo-item" for="r1" style="--cor:var(--zelo-ok)"><span class="dot"></span><strong class="chip-count">80</strong> <span class="lbl">válidas</span></label>
+        <input type="checkbox" class="btn-check" id="r2" checked>
+        <label class="resumo-item" for="r2" style="--cor:var(--zelo-warn)"><span class="dot"></span><strong class="chip-count">22</strong> <span class="lbl">a vencer</span></label>
+        <input type="checkbox" class="btn-check" id="r3" checked>
+        <label class="resumo-item" for="r3" style="--cor:var(--zelo-danger)"><span class="dot"></span><strong class="chip-count">14</strong> <span class="lbl">vencidas</span></label>
+        <input type="checkbox" class="btn-check" id="r4" checked>
+        <label class="resumo-item" for="r4" style="--cor:var(--zelo-pend)"><span class="dot"></span><strong class="chip-count">7</strong> <span class="lbl">pendentes</span></label>
+        <input type="checkbox" class="btn-check" id="r5" checked>
+        <label class="resumo-item" for="r5" style="--cor:var(--zelo-muted)"><span class="dot"></span><strong class="chip-count">5</strong> <span class="lbl">não definida</span></label>
+    </div>
+
+    <!-- chips de TIPO (agora monocromáticos) -->
+    <div class="d-flex flex-wrap gap-2 mb-4">
+        <input type="checkbox" class="btn-check" id="t1" checked><label class="filter-chip chip-federal" for="t1"><i class="bi bi-bank"></i> <span class="chip-label">Federal</span></label>
+        <input type="checkbox" class="btn-check" id="t2" checked><label class="filter-chip chip-fgts" for="t2"><i class="bi bi-person-badge"></i> <span class="chip-label">FGTS</span></label>
+        <input type="checkbox" class="btn-check" id="t3" checked><label class="filter-chip chip-estadual" for="t3"><i class="bi bi-map"></i> <span class="chip-label">Estadual</span></label>
+        <input type="checkbox" class="btn-check" id="t4" checked><label class="filter-chip chip-municipal" for="t4"><i class="bi bi-building"></i> <span class="chip-label">Municipal</span></label>
+        <input type="checkbox" class="btn-check" id="t5" checked><label class="filter-chip chip-trabalhista" for="t5"><i class="bi bi-briefcase"></i> <span class="chip-label">Trabalhista</span></label>
+    </div>
+
+    <h6 class="text-uppercase text-secondary mb-2" style="letter-spacing:.06em">Filtros de status</h6>
+
+    <!-- chips de filtro de status -->
+    <div class="d-flex flex-wrap gap-2 mb-4">
+        <input type="checkbox" class="btn-check" id="c1" checked><label class="filter-chip chip-green" for="c1">Válidas</label>
+        <input type="checkbox" class="btn-check" id="c2" checked><label class="filter-chip chip-yellow" for="c2">A vencer</label>
+        <input type="checkbox" class="btn-check" id="c3" checked><label class="filter-chip chip-red" for="c3">Vencidas</label>
+        <input type="checkbox" class="btn-check" id="c4" checked><label class="filter-chip chip-nao-definida" for="c4">Sem data</label>
+    </div>
+
+    <h6 class="text-uppercase text-secondary mb-2 mt-4" style="letter-spacing:.06em">Componentes (Fase 4)</h6>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+        <button class="btn btn-primary">Emitir</button>
+        <button class="btn btn-success">Cadastrar Empresa</button>
+        <button class="btn btn-danger">Confirmar remoção</button>
+        <button class="btn btn-outline-secondary">Cancelar</button>
+    </div>
+    <div class="batch-kpi-grid mb-4" style="max-width:520px">
+        <div class="batch-kpi-card is-total"><span class="batch-kpi-label">Total</span><span class="batch-kpi-value">128</span></div>
+        <div class="batch-kpi-card is-warning"><span class="batch-kpi-label">A vencer</span><span class="batch-kpi-value">22</span></div>
+        <div class="batch-kpi-card is-danger"><span class="batch-kpi-label">Vencidas</span><span class="batch-kpi-value">14</span></div>
+    </div>
+
+    <table class="table table-bordered table-fixed-layout align-middle">
+        <thead><tr><th class="cert-tipo-col">Tipo</th><th>Empresa</th><th>Status</th><th>Emissão</th><th>Validade</th></tr></thead>
+        <tbody>
+            <tr class="status-verde" data-status-cert="validas">
+                <td class="cert-tipo-col">Federal</td><td>ACME LTDA</td>
+                <td><span class="cert-status-ok">Válida</span></td>
+                <td class="date-cell">10/06/2026</td><td class="date-cell">10/12/2026</td>
+            </tr>
+            <tr class="status-amarelo" data-status-cert="a_vencer">
+                <td class="cert-tipo-col">Estadual</td><td>BETA SA</td>
+                <td><span class="cert-status-warn">A vencer</span></td>
+                <td class="date-cell">01/06/2026</td><td class="date-cell">30/06/2026</td>
+            </tr>
+            <tr class="status-vermelho" data-status-cert="vencidas">
+                <td class="cert-tipo-col">Municipal</td><td>GAMA ME</td>
+                <td><span class="cert-status-danger">Vencida</span></td>
+                <td class="date-cell">01/01/2026</td><td class="date-cell">01/05/2026</td>
+            </tr>
+            <tr class="status-cinza" data-status-cert="nao_definida">
+                <td class="cert-tipo-col">FGTS</td><td>DELTA EIRELI</td>
+                <td><span class="cert-status-muted">Sem data</span></td>
+                <td class="date-cell">—</td><td class="date-cell">—</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

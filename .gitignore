@@ -48,12 +48,18 @@ docs/MAPEAMENTO_MUNICIPIOS.md
 # Specs de trabalho (não versionadas)
 docs/specs/
 
+# Plano de identidade (uso local, não versionado)
+docs/IDENTIDADE_ZELO.md
+
 # Bancos locais
 *.sqlite3
 *.db
 
 # Screenshots gerados pelo harness de UI (Playwright) — artefatos, não versionar
 tools/ui-harness/shots/
+
+# Claude Code — versiona .claude/skills (compartilhado); ignora config pessoal/local
+.claude/settings.local.json
 
 # Artefatos locais diversos
 Thumbs.db

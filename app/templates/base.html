@@ -4,29 +4,37 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Controle de Certidões Fiscais</title>
+    <title>Zelo — Certidões</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <!-- Zelo — superfamília IBM Plex (serif: wordmark/títulos; sans: UI; mono: dados) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap"
+        rel="stylesheet">
+
     <link rel="stylesheet" href="{{ static_versionado('css/style.css') }}">
     <link rel="shortcut icon" href="{{ url_for('static', filename='images/assecon.ico') }}">
 
     <style>
-        /* cores de status das validades*/
+        /* cores de status das validades — banda suave (Zelo: a única cor é o status) */
         .status-verde .date-cell {
-            background-color: #c4ffcf !important;
+            background-color: var(--zelo-ok-soft) !important;
         }
 
         .status-amarelo .date-cell {
-            background-color: #fffcaa !important;
+            background-color: var(--zelo-warn-soft) !important;
         }
 
         .status-vermelho .date-cell {
-            background-color: #ffb6b8 !important;
+            background-color: var(--zelo-danger-soft) !important;
         }
 
         .status-cinza .date-cell {
-            background-color: #e9ecef !important;
+            background-color: var(--zelo-muted-soft) !important;
         }
 
         .table-fixed-layout {
@@ -116,23 +124,17 @@
             <div class="d-flex align-items-center flex-nowrap gap-0">
                 <button class="navbar-toggler me-1 order-1 menu-button" type="button" id="sidebarToggle"
                     aria-controls="appSidebar" aria-expanded="false" aria-label="Toggle navigation">
-                    <i class="bi bi-list menu-icon me-3" aria-hidden="true"></i>
+                    <i class="bi bi-list menu-icon" aria-hidden="true"></i>
                 </button>
-                <a class="navbar-brand fw-semibold nav-title order-2 mb-0 ms-3" href="/">Controle de Certidões Fiscais
-                </a>
+                <a class="navbar-brand fw-semibold nav-title order-2 mb-0 ms-3" href="/">Zelo</a>
             </div>
             <div class="d-flex align-items-center flex-nowrap gap-2">
-                <a class="navbar-brand order-3 mb-0 me-1 logo-full" href="#">
-                    <img src="{{ url_for('static', filename='images/asseconlogo.png') }}"
-                        class="d-inline-block align-top img-fluid logo-light logo-navbar" alt="Logo Assecon">
-                    <img src="{{ url_for('static', filename='images/assecon_branco_logo.png') }}"
-                        class="d-inline-block align-top img-fluid logo-dark logo-navbar" alt="Logo Assecon">
-                </a>
-                <a class="navbar-brand order-3 mb-0 me-1 logo-compact d-none" href="#">
+                <a class="navbar-brand order-3 mb-0 me-1 logo-brand" href="#"
+                    title="Assecon Assessoria e Contabilidade">
                     <img src="{{ url_for('static', filename='images/assecon_preto.png') }}"
-                        class="d-inline-block align-top img-fluid logo-light logo-navbar-compact" alt="Logo Assecon">
+                        class="d-inline-block align-top img-fluid logo-light logo-navbar" alt="Assecon">
                     <img src="{{ url_for('static', filename='images/assecon_branco.png') }}"
-                        class="d-inline-block align-top img-fluid logo-dark logo-navbar-compact" alt="Logo Assecon">
+                        class="d-inline-block align-top img-fluid logo-dark logo-navbar" alt="Assecon">
                 </a>
                 <li class="nav-item ms-0 order-4 list-unstyled mb-0">
                     <button class="btn btn-link nav-link pt-1 py-2 px-0 px-lg-2" onclick="toggleTheme()" type="button"
@@ -157,7 +159,7 @@
                     class="img-fluid logo-dark sidebar-logo-img" alt="Logo Assecon">
             </div>
             <div>
-                <h6 class="sidebar-title mb-0">Menu</h6>
+                <span class="sidebar-title mb-0">Zelo</span>
             </div>
             <button class="btn btn-link sidebar-toggle-menu" type="button" id="sidebarToggleMenu"
                 aria-controls="appSidebar" aria-expanded="false" aria-label="Fechar menu">
@@ -202,7 +204,7 @@
         </main>
         <footer class="bg-body-secondary border-top mt-auto py-2">
             <div class="container-fluid text-center text-muted small">
-                <p class="mb-1">&copy; {{ year }} - Sistema de Controle de Certidões Fiscais</p>
+                <p class="mb-1">&copy; {{ year }} · Zelo — Regularidade sob controle.</p>
                 <p class="mb-0"><strong>Assecon Assessoria e Contabilidade</strong></p>
             </div>
         </footer>
