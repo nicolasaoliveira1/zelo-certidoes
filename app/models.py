@@ -1,6 +1,6 @@
 import enum
 from app import db
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 
 class TipoCertidao(enum.Enum):
@@ -139,7 +139,13 @@ class EventoDiagnostico(db.Model):
     def to_dict(self):
         return {
             'id': self.id,
-            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+            # criado_em e gravado em UTC naive (default=datetime.utcnow); marca o
+            # fuso como UTC ao serializar para que o front (new Date) converta
+            # corretamente para o horario local do PC (Brasilia)
+            'criado_em': (
+                self.criado_em.replace(tzinfo=timezone.utc).isoformat()
+                if self.criado_em else None
+            ),
             'evento': self.evento,
             'nivel': self.nivel,
             'error_type': self.error_type,
