@@ -65,35 +65,35 @@
 
                 <input type="checkbox" class="btn-check filter-trigger" id="status-validas" name="status" value="validas"
                     form="filtro-form" {% if 'validas' in status_filtros %}checked{% endif %}>
-                <label class="resumo-item" for="status-validas" style="--cor:#198754">
+                <label class="resumo-item" for="status-validas" style="--cor:var(--zelo-ok)">
                     <span class="dot"></span><strong class="chip-count" data-status="validas">0</strong>
                     <span class="lbl">válidas</span>
                 </label>
 
                 <input type="checkbox" class="btn-check filter-trigger" id="status-a-vencer" name="status" value="a_vencer"
                     form="filtro-form" {% if 'a_vencer' in status_filtros %}checked{% endif %}>
-                <label class="resumo-item" for="status-a-vencer" style="--cor:#ffc107">
+                <label class="resumo-item" for="status-a-vencer" style="--cor:var(--zelo-warn)">
                     <span class="dot"></span><strong class="chip-count" data-status="a_vencer">0</strong>
                     <span class="lbl">a vencer</span>
                 </label>
 
                 <input type="checkbox" class="btn-check filter-trigger" id="status-vencidas" name="status" value="vencidas"
                     form="filtro-form" {% if 'vencidas' in status_filtros %}checked{% endif %}>
-                <label class="resumo-item" for="status-vencidas" style="--cor:#dc3545">
+                <label class="resumo-item" for="status-vencidas" style="--cor:var(--zelo-danger)">
                     <span class="dot"></span><strong class="chip-count" data-status="vencidas">0</strong>
                     <span class="lbl">vencidas</span>
                 </label>
 
                 <input type="checkbox" class="btn-check filter-trigger" id="status-pendentes" name="status" value="pendentes"
                     form="filtro-form" {% if 'pendentes' in status_filtros %}checked{% endif %}>
-                <label class="resumo-item" for="status-pendentes" style="--cor:#fd7e14">
+                <label class="resumo-item" for="status-pendentes" style="--cor:var(--zelo-pend)">
                     <span class="dot"></span><strong class="chip-count" data-status="pendentes">0</strong>
                     <span class="lbl">pendentes</span>
                 </label>
 
                 <input type="checkbox" class="btn-check filter-trigger" id="status-nao-definida" name="status" value="nao_definida"
                     form="filtro-form" {% if 'nao_definida' in status_filtros %}checked{% endif %}>
-                <label class="resumo-item" for="status-nao-definida" style="--cor:#5a7f9d">
+                <label class="resumo-item" for="status-nao-definida" style="--cor:var(--zelo-muted)">
                     <span class="dot"></span><strong class="chip-count" data-status="nao_definida">0</strong>
                     <span class="lbl">não definida</span>
                 </label>

@@ -1,6 +1,8 @@
-# Sistema de Controle de Certidões Fiscais
+# Zelo — Controle de Certidões Fiscais
 
-Aplicação web em Python/Flask para centralizar, gerenciar e apoiar a emissão de certidões fiscais (Federal, FGTS, Estadual, Municipal e Trabalhista).
+> Regularidade sob controle.
+
+Aplicação web em Python/Flask para centralizar, gerenciar e apoiar a emissão de certidões fiscais (Federal, FGTS, Estadual, Municipal e Trabalhista). **Zelo** é o nome do sistema de uso interno do escritório; a identidade é monocromática (grafite sobre papel), reservando cor apenas para o status das certidões.
 
 ![Dashboard](docs/image.png)
 
@@ -35,7 +37,7 @@ O sistema combina:
 ### Frontend
 
 - Templates Jinja2
-- Bootstrap 5.3
+- Bootstrap 5.3 com identidade própria (**Zelo**: design tokens, IBM Plex, dark/light)
 - JavaScript Vanilla (Fetch API)
 
 ### Banco de dados
@@ -58,10 +60,11 @@ O sistema combina:
 
 - Cadastro de empresa com criação automática de 5 certidões.
 - Filtros por status e busca por nome em tempo real.
-- Status visual de certidões:
+- Status visual de certidões (a única cor da interface):
   - Verde: válida
-  - Amarelo: a vencer (limite configurável, global ou por tipo de certidão)
-  - Vermelho: vencida ou pendente
+  - Âmbar: a vencer (limite configurável, global ou por tipo de certidão)
+  - Vermelho: vencida
+  - Laranja-tijolo: pendente (provável débito) — tom próprio, distinto de vencida
   - Cinza: sem data definida
 - Cadastro de nova empresa com seleção de cidade via dropdown (apenas municípios cadastrados) e inscrição mobiliária condicional (Imbé).
 - Tela de Empresas com listagem, filtros, edição e remoção com confirmação.

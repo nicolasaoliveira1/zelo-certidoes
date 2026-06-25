@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-br" data-bs-theme="light">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Harness navbar Zelo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../app/static/css/style.css">
+    <style>
+        /* linha-guia vermelha no centro vertical da navbar, só pra inspeção */
+        .guia { position: fixed; left: 0; right: 0; height: 1px; background: red; opacity: .6; z-index: 3000; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg bg-body-tertiary mb-4">
+        <div class="container-fluid mx-1 px-4 d-flex align-items-center flex-nowrap justify-content-between">
+            <div class="d-flex align-items-center flex-nowrap gap-0">
+                <button class="navbar-toggler me-1 order-1 menu-button" type="button" id="sidebarToggle" aria-label="Toggle navigation">
+                    <i class="bi bi-list menu-icon" aria-hidden="true"></i>
+                </button>
+                <a class="navbar-brand fw-semibold nav-title order-2 mb-0 ms-3" href="/">Zelo</a>
+            </div>
+            <div class="d-flex align-items-center flex-nowrap gap-2">
+                <a class="navbar-brand order-3 mb-0 me-1 logo-brand" href="#" title="Assecon">
+                    <img src="../../app/static/images/assecon_preto.png" class="d-inline-block align-top img-fluid logo-light logo-navbar" alt="Assecon">
+                    <img src="../../app/static/images/assecon_branco.png" class="d-inline-block align-top img-fluid logo-dark logo-navbar" alt="Assecon">
+                </a>
+                <li class="nav-item ms-0 order-4 list-unstyled mb-0">
+                    <button class="btn btn-link nav-link pt-1 py-2 px-0 px-lg-2" type="button" title="Alternar tema" aria-label="Alternar tema">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi theme-toggle-svg" viewBox="0 0 16 16" id="theme-icon" style="fill: currentColor;">
+                            <path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.050a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707z"/>
+                        </svg>
+                    </button>
+                </li>
+            </div>
+        </div>
+    </nav>
+    <script>
+        window.medirNavbar = function () {
+            const c = el => { const r = el.getBoundingClientRect(); return { top: +r.top.toFixed(1), bottom: +r.bottom.toFixed(1), cy: +((r.top + r.bottom) / 2).toFixed(1), h: +r.height.toFixed(1) }; };
+            return {
+                navbar: c(document.querySelector('.navbar')),
+                hamburger: c(document.querySelector('.menu-icon')),
+                zelo: c(document.querySelector('.nav-title')),
+                toggle: c(document.querySelector('.theme-toggle-svg')),
+                logo: c(document.querySelector('.logo-navbar.logo-light'))
+            };
+        };
+    </script>
+</body>
+</html>
