@@ -303,4 +303,6 @@ app/
 
 ## Licença
 
-Repositório público para estudo e uso interno no contexto do autor. Não é um projeto open-source tradicional.
+Software proprietário — **todos os direitos reservados** (veja [LICENSE](LICENSE)).
+
+O repositório é público apenas para fins de **estudo, demonstração e portfólio**: o código pode ser visualizado e lido, mas **não** há permissão para usar, executar, copiar, modificar ou redistribuir. Não é um projeto open-source. Para qualquer uso além da visualização, é necessária autorização prévia e por escrito do autor.
