@@ -117,8 +117,8 @@ O sistema combina:
 1. Clone o repositório:
 
 ```powershell
-git clone https://github.com/nicolasaoliveira1/CertidoesPython.git
-cd CertidoesPython
+git clone https://github.com/nicolasaoliveira1/zelo-certidoes.git
+cd zelo-certidoes
 ```
 
 2. Crie e ative o ambiente virtual:
