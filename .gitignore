@@ -48,6 +48,9 @@ docs/MAPEAMENTO_MUNICIPIOS.md
 # Specs de trabalho (não versionadas)
 docs/specs/
 
+# Plano de identidade (uso local, não versionado)
+docs/IDENTIDADE_ZELO.md
+
 # Bancos locais
 *.sqlite3
 *.db
