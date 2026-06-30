@@ -10,3 +10,6 @@ thefuzz==0.22.1
 webdriver-manager==4.0.2
 pdfplumber==0.11.5
 2captcha-python==2.0.5
+undetected-chromedriver==3.5.5
+# setuptools fornece o shim de distutils exigido pelo undetected-chromedriver no Python 3.12+
+setuptools==82.0.1

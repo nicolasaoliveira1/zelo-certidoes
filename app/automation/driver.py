@@ -24,16 +24,20 @@ RS_CERT_POLICY_LOCK = Lock()
 RS_CERT_POLICY_ACTIVE_COUNT = 0
 
 
-def _get_chrome_profile_settings():
-    profile_dir = None
-    profile_name = None
-
-    try:
-        profile_dir = current_app.config.get('CHROME_PROFILE_DIR')
-        profile_name = current_app.config.get('CHROME_PROFILE_NAME')
-    except RuntimeError:
-        profile_dir = os.environ.get('CHROME_PROFILE_DIR')
-        profile_name = os.environ.get('CHROME_PROFILE_NAME')
+def _get_chrome_profile_settings(profile_dir=None, profile_name=None):
+    # Precedencia: argumento explicito > config/env > default. Os overrides
+    # permitem um perfil dedicado (ex.: municipal) isolado do perfil Certidoes.
+    if profile_dir is None or profile_name is None:
+        try:
+            cfg_dir = current_app.config.get('CHROME_PROFILE_DIR')
+            cfg_name = current_app.config.get('CHROME_PROFILE_NAME')
+        except RuntimeError:
+            cfg_dir = os.environ.get('CHROME_PROFILE_DIR')
+            cfg_name = os.environ.get('CHROME_PROFILE_NAME')
+        if profile_dir is None:
+            profile_dir = cfg_dir
+        if profile_name is None:
+            profile_name = cfg_name
 
     if not profile_dir:
         profile_dir = os.path.abspath(
@@ -124,7 +128,7 @@ def _desativar_politica_autoselect_rs_temporaria():
             _sincronizar_politica_autoselect_rs(aplicar=False)
 
 
-def _build_chrome_options(anonimo=True, usar_perfil=False):
+def _build_chrome_options(anonimo=True, usar_perfil=False, profile_dir=None, profile_name=None):
     chrome_options = Options()
     chrome_options.add_argument("--start-maximized")
     chrome_options.add_argument("--disable-features=DownloadBubble,DownloadBubbleV2")
@@ -146,7 +150,7 @@ def _build_chrome_options(anonimo=True, usar_perfil=False):
         chrome_options.add_argument("--incognito")
 
     if usar_perfil:
-        profile_dir, profile_name = _get_chrome_profile_settings()
+        profile_dir, profile_name = _get_chrome_profile_settings(profile_dir, profile_name)
         if profile_dir:
             chrome_options.add_argument(f"--user-data-dir={profile_dir}")
         if profile_name:
@@ -199,5 +203,121 @@ def _criar_driver_chrome(anonimo=True, usar_perfil=False):
         _configurar_download_automatico_chrome(driver)
     except Exception as exc:
         log_event('download_config_chrome_failed', level='WARNING', error=str(exc))
+
+    return driver
+
+
+class UcIndisponivelError(RuntimeError):
+    """undetected-chromedriver indisponivel: nao instalado ou nao foi possivel
+    iniciar o navegador (ex.: versao do Chrome incompativel com o ChromeDriver).
+    Carrega mensagem e acao acionaveis para o frontend."""
+
+    def __init__(self, message, acao=None):
+        super().__init__(message)
+        self.message = message
+        self.acao = acao
+
+
+def _detectar_chrome_version_main():
+    """Major version do Chrome instalado, para o uc baixar o ChromeDriver
+    compativel (evita 'This version of ChromeDriver only supports Chrome X').
+
+    Precedencia: env CHROME_UC_VERSION_MAIN > registro do Windows (BLBeacon) >
+    None (deixa o uc tentar auto-detectar)."""
+    env = (os.environ.get('CHROME_UC_VERSION_MAIN') or '').strip()
+    if env.isdigit():
+        return int(env)
+
+    if os.name == 'nt' and winreg is not None:
+        for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+            try:
+                with winreg.OpenKey(hive, r'Software\Google\Chrome\BLBeacon') as chave:
+                    versao, _ = winreg.QueryValueEx(chave, 'version')
+            except OSError:
+                continue
+            major = str(versao).split('.')[0]
+            if major.isdigit():
+                return int(major)
+
+    return None
+
+
+_MUNICIPAL_PROFILE_LOCK = Lock()
+
+
+def _municipal_profile_acquire(blocking=False):
+    """Adquire o lock do perfil municipal (um Chrome por vez nesse perfil).
+    Retorna True se adquiriu, False se ja estava em uso (blocking=False)."""
+    return _MUNICIPAL_PROFILE_LOCK.acquire(blocking=blocking)
+
+
+def _municipal_profile_release():
+    """Libera o lock do perfil municipal. Idempotente: liberar sem ter
+    adquirido nao lanca (seguro de chamar em finally)."""
+    try:
+        _MUNICIPAL_PROFILE_LOCK.release()
+    except RuntimeError:
+        pass
+
+
+def _get_municipal_profile_settings():
+    """Resolve (pasta, nome) do perfil dedicado aos fluxos municipais IPM.
+
+    Precedencia da pasta: env CHROME_PROFILE_MUNICIPAL_DIR > default sibling
+    'chrome-profile-municipal'. Nome fixo 'Municipal', isolado do perfil
+    'Certidoes' usado por RS/Federal (evita disputa de lock e contaminacao)."""
+    profile_dir = (os.environ.get('CHROME_PROFILE_MUNICIPAL_DIR') or '').strip()
+    if not profile_dir:
+        profile_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), '..', 'chrome-profile-municipal')
+        )
+    return _get_chrome_profile_settings(profile_dir=profile_dir, profile_name='Municipal')
+
+
+def _criar_driver_uc(profile_dir=None, profile_name=None):
+    """Cria um Chrome via undetected-chromedriver com perfil persistente
+    dedicado ao municipal, para elevar o score anti-bot do IPM Atende.Net e
+    reaproveitar o cookie de clearance entre execucoes.
+
+    Levanta UcIndisponivelError quando o pacote nao e importavel ou o
+    navegador nao pode ser iniciado (fail-fast, sem fallback para incognito)."""
+    try:
+        import undetected_chromedriver as uc
+    except ImportError as exc:
+        raise UcIndisponivelError(
+            'Driver anti-bloqueio nao instalado: instale undetected-chromedriver e setuptools no servidor.',
+            acao='Rode iniciar.bat ou "pip install -r requirements.txt" no venv e tente de novo.',
+        ) from exc
+
+    if profile_dir is None and profile_name is None:
+        profile_dir, profile_name = _get_municipal_profile_settings()
+
+    options = _build_chrome_options(
+        anonimo=False, usar_perfil=True,
+        profile_dir=profile_dir, profile_name=profile_name,
+    )
+
+    try:
+        driver = uc.Chrome(options=options, version_main=_detectar_chrome_version_main())
+    except Exception as exc:
+        log_event('uc_driver_start_failed', level='WARNING', error=str(exc))
+        primeira_linha = (str(exc).strip().splitlines() or [''])[0]
+        raise UcIndisponivelError(
+            'Driver anti-bloqueio nao pode iniciar o Chrome: ' + primeira_linha,
+            acao='Verifique a versao do Chrome instalada (o ChromeDriver pode estar incompativel). '
+                 'Defina CHROME_UC_VERSION_MAIN se necessario. Detalhes no log pelo req_id.',
+        ) from exc
+
+    try:
+        _configurar_download_automatico_chrome(driver)
+    except Exception as exc:
+        log_event('download_config_chrome_failed', level='WARNING', error=str(exc))
+
+    # Perfil persistente restaura o ultimo tamanho da janela e ignora
+    # --start-maximized; forca a maximizacao explicitamente.
+    try:
+        driver.maximize_window()
+    except Exception as exc:
+        log_event('uc_maximize_failed', level='WARNING', error=str(exc))
 
     return driver

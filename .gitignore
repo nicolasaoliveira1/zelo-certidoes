@@ -21,6 +21,8 @@ instance/
 
 # Perfil dedicado do Chrome / dados locais da automação
 chrome-profile/
+# Perfil dedicado do Chrome para fluxos municipais IPM (undetected-chromedriver)
+chrome-profile-municipal/
 
 # Configurações do editor de código
 .vscode/
@@ -60,6 +62,11 @@ tools/ui-harness/shots/
 
 # Claude Code — versiona .claude/skills (compartilhado); ignora config pessoal/local
 .claude/settings.local.json
+# Skill instalada localmente (uso pessoal, não versionada)
+.claude/skills/tlc-spec-driven/
+
+# Specs de trabalho da skill spec-driven (uso local, não versionadas)
+.specs/
 
 # Artefatos locais diversos
 Thumbs.db

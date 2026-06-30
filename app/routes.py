@@ -22,7 +22,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select, WebDriverWait
 
 from app import db, file_manager
-from app.errors import descrever_erro, mensagem_usuario
+from app.errors import ErrorType, descrever_erro, mensagem_usuario
 from app.automation import SITES_CERTIDOES, capture, pdf, steps
 from app.automation.batch_state import (
     FGTS_BATCH_LOCK,
@@ -35,11 +35,16 @@ from app.automation.batch_state import (
     marcar_emissao_individual,
 )
 from app.automation.driver import (
+    UcIndisponivelError,
     _ativar_politica_autoselect_rs_temporaria,
     _configurar_download_automatico_chrome,
     _criar_driver_chrome,
+    _criar_driver_uc,
     _desativar_politica_autoselect_rs_temporaria,
+    _municipal_profile_acquire,
+    _municipal_profile_release,
 )
+from app.automation.sites import is_ipm_atende
 from app.automation.emissao import (
     _aplicar_variantes_imbe,
     _automatizar_fgts,
@@ -1314,6 +1319,7 @@ def _resultado_baixar_vazio():
     return {
         'window_closed': False,
         'erro_500': None,
+        'erro_acionavel': None,
         'arquivo_salvo_msg': None,
         'data_encontrada': None,
         'rs_estadual_classificacao': None,
@@ -1541,6 +1547,48 @@ def _baixar_executar_acao(nome_acao, info_site, wait, driver, certidao, contexto
             )
 
 
+def _abrir_driver_baixar(cfg, certidao, resultado):
+    """Escolhe e cria o WebDriver da emissao individual.
+
+    Municipal IPM Atende.Net -> undetected-chromedriver com perfil dedicado
+    (serializado por lock); demais tipos/municipios -> _criar_driver_chrome
+    atual. Em falha de pre-condicao (perfil ocupado / uc indisponivel)
+    preenche resultado['erro_acionavel'] e retorna (None, False) — fail-fast,
+    sem fallback para incognito. Retorna (driver, lock_municipal_ativo)."""
+    tipo_certidao_chave = cfg['tipo_certidao_chave']
+    info_site = cfg['info_site']
+    usar_rs_autoselect = cfg['usar_rs_autoselect']
+
+    if tipo_certidao_chave == 'MUNICIPAL' and is_ipm_atende(info_site.get('url')):
+        if not _municipal_profile_acquire(blocking=False):
+            resultado['erro_acionavel'] = {
+                'message': 'Perfil municipal em uso: aguarde a emissao atual terminar e tente novamente.',
+                'error_type': ErrorType.PORTAL.value,
+                'acao': 'Aguarde a emissao municipal em andamento concluir antes de iniciar outra.',
+                'code': 409,
+            }
+            return None, False
+        try:
+            driver = _criar_driver_uc()
+        except UcIndisponivelError as exc:
+            log_event('uc_indisponivel', level='ERROR', certidao_id=certidao.id, error=str(exc))
+            _municipal_profile_release()
+            resultado['erro_acionavel'] = {
+                'message': exc.message,
+                'error_type': ErrorType.PORTAL.value,
+                'acao': exc.acao or 'Verifique a instalacao do undetected-chromedriver e a versao do Chrome.',
+                'code': 409,
+            }
+            return None, False
+        return driver, True
+
+    driver = _criar_driver_chrome(
+        anonimo=not usar_rs_autoselect,
+        usar_perfil=usar_rs_autoselect,
+    )
+    return driver, False
+
+
 def _executar_automacao_baixar(certidao, cfg):
     """Camada Selenium da emissao unitaria. Recebe a config ja montada e
     devolve um dict 'resultado' com os flags de classificacao/arquivo (ou os
@@ -1566,6 +1614,7 @@ def _executar_automacao_baixar(certidao, cfg):
     arquivo_salvo_msg = None
     pular_monitoramento = False
     rs_autoselect_temporario_ativo = False
+    municipal_profile_lock_ativo = False
     rs_estadual_classificacao = None
     rs_estadual_msg = None
     municipal_pdf_classificacao = None
@@ -1588,10 +1637,9 @@ def _executar_automacao_baixar(certidao, cfg):
         if usar_rs_autoselect:
             rs_autoselect_temporario_ativo = _ativar_politica_autoselect_rs_temporaria()
 
-        driver = _criar_driver_chrome(
-            anonimo=not usar_rs_autoselect,
-            usar_perfil=usar_rs_autoselect
-        )
+        driver, municipal_profile_lock_ativo = _abrir_driver_baixar(cfg, certidao, resultado)
+        if driver is None:
+            return resultado
 
         wait = WebDriverWait(driver, 20)
 
@@ -1766,6 +1814,8 @@ def _executar_automacao_baixar(certidao, cfg):
     finally:
         if rs_autoselect_temporario_ativo:
             _desativar_politica_autoselect_rs_temporaria()
+        if municipal_profile_lock_ativo:
+            _municipal_profile_release()
 
     resultado['arquivo_salvo_msg'] = arquivo_salvo_msg
     resultado['data_encontrada'] = data_encontrada
@@ -1785,6 +1835,15 @@ def _montar_resposta_baixar(certidao, cfg, resultado):
     tipo_certidao_chave = cfg['tipo_certidao_chave']
     regra_municipio = cfg['regra_municipio']
     nome_certidao_arquivo = cfg['nome_certidao_arquivo']
+
+    erro_acionavel = resultado.get('erro_acionavel')
+    if erro_acionavel:
+        return _json_error(
+            erro_acionavel['message'],
+            erro_acionavel.get('code', 409),
+            error_type=erro_acionavel.get('error_type'),
+            acao=erro_acionavel.get('acao'),
+        )
 
     if resultado.get('erro_500'):
         return _json_error(resultado['erro_500'], 500)
