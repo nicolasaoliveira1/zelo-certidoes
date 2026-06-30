@@ -1,3 +1,21 @@
+from urllib.parse import urlparse
+
+
+def is_ipm_atende(url):
+    """True se a URL pertence a um portal IPM Atende.Net (host atende.net).
+
+    Detecta pelo host (nao por substring no path/query) para evitar falso
+    positivo. Entradas invalidas/None retornam False sem lancar.
+    """
+    if not url or not isinstance(url, str):
+        return False
+    try:
+        host = (urlparse(url).hostname or '').lower()
+    except (ValueError, TypeError):
+        return False
+    return host == 'atende.net' or host.endswith('.atende.net')
+
+
 SITES_CERTIDOES = {
     'FEDERAL': {
         'url': 'https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj',
