@@ -313,4 +313,11 @@ def _criar_driver_uc(profile_dir=None, profile_name=None):
     except Exception as exc:
         log_event('download_config_chrome_failed', level='WARNING', error=str(exc))
 
+    # Perfil persistente restaura o ultimo tamanho da janela e ignora
+    # --start-maximized; forca a maximizacao explicitamente.
+    try:
+        driver.maximize_window()
+    except Exception as exc:
+        log_event('uc_maximize_failed', level='WARNING', error=str(exc))
+
     return driver
