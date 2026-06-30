@@ -31,6 +31,7 @@ O sistema combina:
 
 - Selenium WebDriver
 - webdriver-manager
+- undetected-chromedriver (anti-bloqueio dos portais municipais IPM Atende.Net)
 - 2captcha-python (ALTCHA no lote Estadual RS)
 - pdfplumber (leitura de PDF quando aplicável)
 
@@ -86,6 +87,7 @@ O sistema combina:
   - Tramandaí: fluxo condicional com detecção de link NEGATIVA na página final; suporte a lote.
   - Gravataí: classificação de status via conteúdo do PDF (positiva/negativa), com tratamento automático de pendência quando positiva.
   - Imbé: resolução automática de captcha de imagem via 2captcha; emissão de geral e mobiliário separadamente; suporte a lote por subtipo.
+  - Portais IPM Atende.Net (Gravataí, Osório, Novo Hamburgo): a emissão individual usa **undetected-chromedriver** com um perfil persistente dedicado para não ser bloqueada pelo score anti-bot do portal (tela "validação automática de segurança / baixa pontuação"). A detecção é automática pela URL (`*.atende.net`) — qualquer novo município com esse domínio entra no fluxo sem mudança de código. O captcha em si continua resolvido manualmente pelo operador. Falhas de pré-condição (driver indisponível ou perfil em uso) retornam mensagem acionável (HTTP 409) sem cair para o navegador comum.
 
 ### Gestão de arquivos
 
@@ -152,6 +154,12 @@ SECRET_KEY=uma_chave_segura
 # CHROME_PROFILE_DIR=C:\CertidoesPython\chrome-profile
 # CHROME_PROFILE_NAME=Certidoes
 
+# Perfil dedicado dos municípios IPM Atende.Net (undetected-chromedriver, opcional)
+# CHROME_PROFILE_MUNICIPAL_DIR=C:\CertidoesPython\chrome-profile-municipal
+# Força o major do Chrome para o undetected-chromedriver (opcional; por padrão é
+# detectado automaticamente do Chrome instalado). Use se a auto-detecção falhar.
+# CHROME_UC_VERSION_MAIN=149
+
 # Certificado Estadual RS (opcional)
 # RS_CERT_AUTOSELECT_ENABLED=true
 # RS_CERT_AUTOSELECT_PATTERN=https://www.sefaz.rs.gov.br
@@ -181,6 +189,8 @@ python run.py
 ```
 
 Acesso local: http://localhost:5000
+
+> **Atalho no Windows:** dê um duplo clique em `iniciar.bat` na pasta do projeto. Ele ativa o `venv`, garante as dependências (`pip install -r requirements.txt`, idempotente) e sobe o app. Se faltar alguma dependência crítica (ex.: `undetected-chromedriver`), o `run.py` aborta o boot com uma mensagem clara em vez de subir quebrado.
 
 ## Como usar
 
@@ -235,13 +245,16 @@ Na tela de Configurações, é possível ajustar o limite de dias para uma certi
 
 As automações municipais dependem da configuração de seletores e steps na tabela Município. Para novas cidades, é necessário mapear o portal e registrar a configuração correspondente.
 
+Portais **IPM Atende.Net** (URL `*.atende.net`, como Gravataí/Osório/Novo Hamburgo) são roteados automaticamente para o `undetected-chromedriver` com perfil persistente próprio (`CHROME_PROFILE_MUNICIPAL_DIR`, padrão `chrome-profile-municipal/`, isolado do perfil do RS/Federal). No primeiro acesso com o perfil "frio", o bloqueio do portal pode aparecer uma vez até o operador desbloquear manualmente; depois o cookie de confiança persiste no perfil e os próximos acessos fluem.
+
 ## Estrutura do projeto
 
 ```text
 .
   .env
   config.py
-  run.py
+  run.py                     # Entrypoint; aborta o boot se faltar dependência crítica
+  iniciar.bat                # Atalho Windows: venv + deps + run.py
   requirements.txt
   README.md
   docs/
@@ -273,6 +286,7 @@ app/
     batch_engine.py        # Motor compartilhado de lotes
     certidao_service.py    # Operações de domínio sobre Certidão (validade/pendente)
     correlation.py         # Contexto de correlação (request_id/execution_id)
+    deps_check.py          # Verificação de dependências críticas no boot (fail-fast)
     execution_logger.py    # Logger estruturado: console legível + app.jsonl
     diagnostics.py         # Buffer/recorrência em memória + histórico persistido
     preflight.py           # Pré-checagens (rede/Chrome/solver) antes de emitir
