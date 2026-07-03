@@ -679,6 +679,7 @@ def dashboard():
             'tipo_total': 0, 'tipo_federal': 0, 'tipo_fgts': 0,
             'tipo_estadual': 0, 'tipo_municipal': 0, 'tipo_trabalhista': 0,
             'menor_validade': '9999-12-31',
+            'ultima_atualizacao': '',
         }
         for c in empresa.certidoes:
             if c.status_especial == StatusEspecial.PENDENTE:
@@ -700,6 +701,12 @@ def dashboard():
                 dval = c.data_validade.strftime('%Y-%m-%d')
                 if dval < counts['menor_validade']:
                     counts['menor_validade'] = dval
+            # ultima_atualizacao da empresa = a mais recente entre as certidoes
+            # (max ISO). '' inicial < qualquer ISO, entao sem dado fica ''.
+            if c.atualizado_em:
+                iso = c.atualizado_em.strftime('%Y-%m-%dT%H:%M:%S')
+                if iso > counts['ultima_atualizacao']:
+                    counts['ultima_atualizacao'] = iso
         contadores_por_empresa[empresa.id] = counts
         certidoes_por_empresa[empresa.id] = sorted(empresa.certidoes, key=lambda c: c.ordem_exibicao)
 
