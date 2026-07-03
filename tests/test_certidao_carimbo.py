@@ -6,6 +6,8 @@ ultima atualizacao automaticamente".
 """
 from datetime import date, datetime
 
+import sqlalchemy as sa
+
 from app import db
 from app.models import Certidao, Empresa, TipoCertidao
 
@@ -33,16 +35,25 @@ def test_atualizado_em_preenchido_na_criacao(app, ids):
 
 
 def test_atualizado_em_avanca_no_update(app, ids):
-    """Alterar um campo e commitar avanca atualizado_em (onupdate na UPDATE)."""
+    """Alterar um campo e commitar AVANCA atualizado_em (onupdate na UPDATE).
+
+    Usa um baseline conhecido no passado (via Core update, que nao dispara o
+    onupdate) e exige que um UPDATE via ORM leve o carimbo para depois dele —
+    assim o teste falha se o onupdate for removido (nao apenas 'nao regride')."""
+    passado = datetime(2000, 1, 1, 0, 0, 0)
     with app.app_context():
         emp = _empresa()
         cert = Certidao(tipo=TipoCertidao.FEDERAL, empresa=emp)
         db.session.add(cert)
         db.session.commit()
-        inicial = cert.atualizado_em
-        assert inicial is not None
-        # forca um instante depois para o onupdate render um valor maior
+        # ancora o carimbo no passado sem disparar onupdate (valor explicito)
+        db.session.execute(sa.update(Certidao)
+                           .where(Certidao.id == cert.id)
+                           .values(atualizado_em=passado))
+        db.session.commit()
+        db.session.refresh(cert)
+        assert cert.atualizado_em == passado
+        # um UPDATE via ORM deve disparar onupdate e avancar para o presente
         cert.data_validade = date(2030, 1, 1)
         db.session.commit()
-        assert cert.atualizado_em is not None
-        assert cert.atualizado_em >= inicial
+        assert cert.atualizado_em > passado
