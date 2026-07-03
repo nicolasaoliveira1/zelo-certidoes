@@ -52,6 +52,12 @@ class Certidao(db.Model):
     empresa_id = db.Column(db.Integer, db.ForeignKey(
         'empresa.id'), nullable=False)
     status_especial = db.Column(db.Enum(StatusEspecial), nullable=True)
+    # Ultima modificacao (hora local naive). default cobre a criacao/INSERT
+    # (onde onupdate nao dispara); onupdate cobre qualquer UPDATE persistido.
+    # Alimenta a ordenacao "Ultima atualizacao" do dashboard.
+    atualizado_em = db.Column(
+        db.DateTime, nullable=True,
+        default=datetime.now, onupdate=datetime.now)
 
     def __repr__(self):
         if self.subtipo:
