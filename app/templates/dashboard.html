@@ -238,6 +238,13 @@
                             <i class="bi bi-calendar-event"></i>
                             <span class="chip-label">Vencimento</span>
                         </label>
+
+                        <input type="radio" class="btn-check" id="ordem-atualizacao" name="ordem-opt" value="atualizacao"
+                            {% if ordem == 'atualizacao' %}checked{% endif %}>
+                        <label class="filter-chip chip-ordem" for="ordem-atualizacao" data-ordem-label="Última atualização">
+                            <i class="bi bi-clock-history"></i>
+                            <span class="chip-label">Última atualização</span>
+                        </label>
                     </div>
                 </div>
             </div>
@@ -3008,6 +3015,14 @@
                         const valA = a.dataset.menorValidade || '9999-12-31';
                         const valB = b.dataset.menorValidade || '9999-12-31';
                         if (valA !== valB) return valA.localeCompare(valB);
+                        return nomeA.localeCompare(nomeB);
+                    }
+                    if (ordem === 'atualizacao') {
+                        // Parada ha mais tempo primeiro: ISO ascendente. Sem dado ('')
+                        // ordena antes de qualquer ISO -> vai ao topo. Empate -> nome.
+                        const atA = a.dataset.ultimaAtualizacao || '';
+                        const atB = b.dataset.ultimaAtualizacao || '';
+                        if (atA !== atB) return atA.localeCompare(atB);
                         return nomeA.localeCompare(nomeB);
                     }
                     return compararUrgencia(a, b, nomeA, nomeB);
