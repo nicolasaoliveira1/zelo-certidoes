@@ -1622,7 +1622,8 @@ footer {
 .btn-check:checked + .chip-municipal,
 .btn-check:checked + .chip-trabalhista,
 .btn-check:checked + .chip-estado,
-.btn-check:checked + .chip-cidade {
+.btn-check:checked + .chip-cidade,
+.btn-check:checked + .chip-ordem {
     background-color: var(--zelo-action-bg) !important;
     color: var(--zelo-action-fg);
     box-shadow: 0 4px 10px color-mix(in srgb, var(--zelo-ink) 22%, transparent);

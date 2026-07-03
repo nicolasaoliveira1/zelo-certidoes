@@ -211,13 +211,34 @@
                     </div>
                 </div>
 
-                <div class="order-select">
-                    <select class="form-select order-select-input" id="ordem-select">
-                        <option value="urgencia" {% if ordem == 'urgencia' %}selected{% endif %}>⚠️ Urgência</option>
-                        <option value="az" {% if ordem == 'az' %}selected{% endif %}>🔤 A–Z</option>
-                        <option value="vencimento" {% if ordem == 'vencimento' %}selected{% endif %}>🗓 Vencimento</option>
-                    </select>
-                    <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                <div class="filtro-dd" id="ordem-dd">
+                    <button class="filtro-dd-toggle" type="button" id="ordem-dd-toggle" aria-haspopup="true"
+                        aria-expanded="false">
+                        <i class="bi bi-sort-down"></i> Ordenar <span class="dd-badge" id="ordem-dd-badge">Urgência</span>
+                        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                    </button>
+                    <div class="dd-panel">
+                        <input type="radio" class="btn-check" id="ordem-urgencia" name="ordem-opt" value="urgencia"
+                            {% if ordem == 'urgencia' or not ordem %}checked{% endif %}>
+                        <label class="filter-chip chip-ordem" for="ordem-urgencia" data-ordem-label="Urgência">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            <span class="chip-label">Urgência</span>
+                        </label>
+
+                        <input type="radio" class="btn-check" id="ordem-az" name="ordem-opt" value="az"
+                            {% if ordem == 'az' %}checked{% endif %}>
+                        <label class="filter-chip chip-ordem" for="ordem-az" data-ordem-label="A–Z">
+                            <i class="bi bi-sort-alpha-down"></i>
+                            <span class="chip-label">A–Z</span>
+                        </label>
+
+                        <input type="radio" class="btn-check" id="ordem-vencimento" name="ordem-opt" value="vencimento"
+                            {% if ordem == 'vencimento' %}checked{% endif %}>
+                        <label class="filter-chip chip-ordem" for="ordem-vencimento" data-ordem-label="Vencimento">
+                            <i class="bi bi-calendar-event"></i>
+                            <span class="chip-label">Vencimento</span>
+                        </label>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2805,9 +2826,22 @@
             }
 
             const formFiltro = document.getElementById('filtro-form');
-            const ordemSelect = document.getElementById('ordem-select');
+            const ordemRadios = Array.from(document.querySelectorAll('.btn-check[name="ordem-opt"]'));
+            const ordemBadge = document.getElementById('ordem-dd-badge');
             const ordemHidden = document.getElementById('ordem-hidden');
             const ordemStorageKey = 'dashboardOrdem';
+
+            function getOrdemAtual() {
+                const sel = ordemRadios.find(r => r.checked);
+                return sel ? sel.value : 'urgencia';
+            }
+
+            function atualizarBadgeOrdem() {
+                if (!ordemBadge) return;
+                const sel = ordemRadios.find(r => r.checked);
+                const lbl = sel ? document.querySelector('label[for="' + sel.id + '"]') : null;
+                ordemBadge.textContent = lbl ? (lbl.dataset.ordemLabel || lbl.textContent.trim()) : 'Urgência';
+            }
 
             const todasCheckbox = document.getElementById('status-todas');
             const statusCheckboxes = [
@@ -2837,14 +2871,16 @@
             );
 
             function aplicarOrdenacaoSalva() {
-                if (!ordemSelect) return;
+                if (!ordemRadios.length) return;
                 const ordemSalva = localStorage.getItem(ordemStorageKey);
-                if (ordemSalva && ordemSalva !== ordemSelect.value) {
-                    ordemSelect.value = ordemSalva;
+                if (ordemSalva) {
+                    const alvo = ordemRadios.find(r => r.value === ordemSalva);
+                    if (alvo) alvo.checked = true;
+                } else {
+                    localStorage.setItem(ordemStorageKey, getOrdemAtual());
                 }
-                if (!ordemSalva) {
-                    localStorage.setItem(ordemStorageKey, ordemSelect.value);
-                }
+                if (ordemHidden) ordemHidden.value = getOrdemAtual();
+                atualizarBadgeOrdem();
                 ordenarCards();
             }
 
@@ -2956,7 +2992,7 @@
             function ordenarCards() {
                 const lista = document.getElementById('lista-empresas');
                 if (!lista) return;
-                const ordem = ordemSelect ? ordemSelect.value : 'urgencia';
+                const ordem = getOrdemAtual();
                 const cards = Array.from(lista.querySelectorAll('.company-card'));
                 cards.sort((a, b) => {
                     const nomeA = (a.dataset.nomeEmpresa || '').toUpperCase();
@@ -3084,12 +3120,16 @@
             setupChipGroup(estadoTodasCheckbox, estadoCheckboxes, aplicarHierarquiaCidade);
             setupChipGroup(cidadeTodasCheckbox, cidadeCheckboxes);
 
-            if (ordemSelect) {
-                ordemSelect.addEventListener('change', function () {
-                    localStorage.setItem(ordemStorageKey, ordemSelect.value);
+            ordemRadios.forEach(radio => {
+                radio.addEventListener('change', function () {
+                    if (!radio.checked) return;
+                    localStorage.setItem(ordemStorageKey, radio.value);
+                    if (ordemHidden) ordemHidden.value = radio.value;
+                    atualizarBadgeOrdem();
                     ordenarCards();
+                    fecharTodosDropdowns();
                 });
-            }
+            });
 
             // Dropdowns de chips (Estado/Cidade/Tipo): abre no toggle (fechando os demais),
             // fecha ao clicar fora ou Esc; clicar nos chips dentro não fecha.
