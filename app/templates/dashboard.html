@@ -2981,12 +2981,17 @@
                 atualizarContagensChips();
             }
 
-            function calcUrgenciaBucket(card) {
-                if (Number(card.dataset.countVencidas) > 0) return 0;
-                if (Number(card.dataset.countAVencer) > 0) return 1;
-                if (Number(card.dataset.countPendentes) > 0) return 2;
-                if (Number(card.dataset.countNaoDefinida) > 0) return 3;
-                return 4;
+            function compararUrgencia(a, b, nomeA, nomeB) {
+                // Gravidade + volume em cascata: a comparação lexicográfica por essas
+                // contagens (desc) reproduz os degraus de gravidade — quem tem qualquer
+                // vencida vence quem tem 0 — e, dentro de cada nível, quem tem MAIS
+                // pendências sobe. Empresas de mesmo perfil desempatam por nome.
+                const chaves = ['countVencidas', 'countAVencer', 'countPendentes', 'countNaoDefinida'];
+                for (const k of chaves) {
+                    const diff = Number(b.dataset[k] || 0) - Number(a.dataset[k] || 0);
+                    if (diff !== 0) return diff;
+                }
+                return nomeA.localeCompare(nomeB);
             }
 
             function ordenarCards() {
@@ -3004,8 +3009,7 @@
                         if (valA !== valB) return valA.localeCompare(valB);
                         return nomeA.localeCompare(nomeB);
                     }
-                    const bucketDiff = calcUrgenciaBucket(a) - calcUrgenciaBucket(b);
-                    return bucketDiff !== 0 ? bucketDiff : nomeA.localeCompare(nomeB);
+                    return compararUrgencia(a, b, nomeA, nomeB);
                 });
                 cards.forEach(card => lista.appendChild(card));
             }
