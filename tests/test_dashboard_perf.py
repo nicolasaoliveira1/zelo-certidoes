@@ -6,6 +6,7 @@ Cobre:
 - Rota GET /certidao/<id>/token-visualizar: lazy token
 """
 import os
+import re
 import tempfile
 from datetime import date, timedelta
 
@@ -103,23 +104,59 @@ class TestDashboard:
         assert r.status_code == 200
         assert b'Empresa Teste' in r.data
 
-    def test_dashboard_filtro_cidade_outra_cidade_oculta_empresa(self, client, ids, empresa_sp):
-        """Filtrando por SP, a empresa de Tramandaí não deve aparecer."""
+    def test_dashboard_cidade_deeplink_renderiza_todas_e_marca_chip(self, client, ids, empresa_sp):
+        """Estado/cidade agora filtram no cliente: todas as empresas continuam no
+        HTML (o filtro efetivo é no navegador) e o chip da cidade vem pré-marcado."""
         r = client.get('/?cidade=S%C3%A3o+Paulo')
         assert r.status_code == 200
         assert b'Empresa SP' in r.data
-        assert b'Empresa Teste' not in r.data
+        assert b'Empresa Teste' in r.data  # não é mais removida no servidor
+        # algum chip de cidade vem pré-marcado (deep-link)
+        assert re.search(rb'id="cidade-[^"]+"[^>]*\bchecked\b', r.data)
 
-    def test_dashboard_filtro_cidade_inexistente_retorna_vazio(self, client, ids):
+    def test_dashboard_filtro_cidade_inexistente_nao_quebra(self, client, ids):
+        """Cidade inexistente: sem chip para pré-marcar, a página renderiza tudo."""
         r = client.get('/?cidade=CidadeQueNaoExiste')
         assert r.status_code == 200
-        assert b'Empresa Teste' not in r.data
+        assert b'Empresa Teste' in r.data
 
-    def test_dashboard_filtro_estado(self, client, ids, empresa_sp):
+    def test_dashboard_estado_deeplink_renderiza_todas_e_marca_chip(self, client, ids, empresa_sp):
         r = client.get('/?estado=SP')
         assert r.status_code == 200
         assert b'Empresa SP' in r.data
-        assert b'Empresa Teste' not in r.data
+        assert b'Empresa Teste' in r.data  # filtro é client-side, não remove no servidor
+        # chip do estado SP pré-marcado
+        assert re.search(rb'id="estado-SP"[^>]*\bchecked\b', r.data)
+
+    def test_dashboard_cidade_variantes_agrupadas_em_um_chip(self, app, client, ids):
+        """'Imbé' e 'IMBE' (acento/caixa) devem gerar um único chip de cidade,
+        e cada card recebe a mesma data-cidade-key (agrupamento canônico)."""
+        with app.app_context():
+            for nome, cid in [('Imbe Um', 'Imbé'), ('Imbe Dois', 'IMBE')]:
+                emp = Empresa(nome=nome, cnpj=f'44.444.444/444{len(nome)}-44',
+                              estado='RS', cidade=cid)
+                db.session.add(emp)
+                db.session.flush()
+                db.session.add(Certidao(tipo=TipoCertidao.MUNICIPAL, empresa=emp))
+            db.session.commit()
+        try:
+            r = client.get('/')
+            assert r.status_code == 200
+            html = r.data.decode('utf-8')
+            # ambas as empresas renderizam (filtro client-side)
+            assert 'Imbe Um' in html and 'Imbe Dois' in html
+            # um único chip-count de cidade para a variante Imbé
+            chaves_imbe = set(re.findall(r'data-cidade="([^"]*imb[^"]*)"', html, re.IGNORECASE))
+            assert len(chaves_imbe) == 1, chaves_imbe
+            # os dois cards compartilham a mesma data-cidade-key
+            keys_cards = set(re.findall(r'company-card[^>]*data-cidade-key="([^"]*imb[^"]*)"',
+                                        html, re.IGNORECASE))
+            assert keys_cards == chaves_imbe
+        finally:
+            with app.app_context():
+                for emp in Empresa.query.filter(Empresa.nome.in_(['Imbe Um', 'Imbe Dois'])).all():
+                    db.session.delete(emp)
+                db.session.commit()
 
     def test_dashboard_data_attributes_presentes(self, client, ids):
         """Os data-* de contadores devem aparecer no HTML."""

@@ -585,8 +585,14 @@ def api_pendencias():
 def dashboard():
     status_filtros = request.args.getlist('status')
     tipo_filtros = request.args.getlist('tipo')
-    estado_filtro = request.args.get('estado', '')
-    cidade_filtro = (request.args.get('cidade', '') or '').strip()
+    # Estado e cidade são multi-seleção e filtrados no cliente (chips com
+    # contagem combinável). O servidor só lê os params para pré-marcar os chips.
+    estado_filtros = [e.strip().upper() for e in request.args.getlist('estado') if e and e.strip()]
+    cidade_filtros = []
+    for c in request.args.getlist('cidade'):
+        chave = _normalizar_cidade_dashboard(c or '')
+        if chave and chave not in cidade_filtros:
+            cidade_filtros.append(chave)
     ordem = (request.args.get('ordem') or 'urgencia').strip().lower()
 
     query = db.session.query(Empresa).distinct()
@@ -612,11 +618,12 @@ def dashboard():
         if not tipo_filtros:
             tipo_filtros = ['todas']
 
-    if estado_filtro:
-        query = query.filter(Empresa.estado == estado_filtro)
+    # Sem filtro server-side de estado/cidade: a query carrega todas as empresas
+    # para o cliente poder contar de forma cruzada (estado × cidade × tipo × status).
 
     # Query única para cidades e estados (evita round-trip extra ao banco)
     cidades_variantes = {}
+    cidades_estados = {}
     estados_set = set()
     for cidade, estado in db.session.query(Empresa.cidade, Empresa.estado).all():
         if estado:
@@ -629,6 +636,8 @@ def dashboard():
             continue
         variantes = cidades_variantes.setdefault(chave_normalizada, {})
         variantes[cidade] = variantes.get(cidade, 0) + 1
+        if estado:
+            cidades_estados.setdefault(chave_normalizada, set()).add(estado)
 
     estados_disponiveis = sorted(estados_set)
 
@@ -636,22 +645,27 @@ def dashboard():
         chave: _escolher_cidade_canonica_dashboard(variantes)
         for chave, variantes in cidades_variantes.items()
     }
-    cidades_disponiveis = sorted(
-        cidades_por_chave.values(),
-        key=_normalizar_cidade_dashboard,
-    )
 
-    # Filtro de cidade aplicado no banco (WHERE IN) antes de carregar certidões
-    if cidade_filtro:
-        chave_filtro = _normalizar_cidade_dashboard(cidade_filtro)
-        if chave_filtro and chave_filtro in cidades_variantes:
-            variantes_validas = list(cidades_variantes[chave_filtro].keys())
-            query = query.filter(Empresa.cidade.in_(variantes_validas))
-            cidade_filtro = cidades_por_chave.get(chave_filtro, cidade_filtro)
-        elif chave_filtro:
-            query = query.filter(Empresa.cidade == cidade_filtro)
+    # Chips de cidade: rótulo canônico + estados a que a cidade pertence
+    # (usado pelo recorte "cidade segue o estado" no cliente)
+    cidades_chips = [
+        {
+            'key': chave,
+            'label': cidades_por_chave.get(chave, chave),
+            'estados': sorted(cidades_estados.get(chave, set())),
+        }
+        for chave in cidades_por_chave
+    ]
+    cidades_chips.sort(key=lambda c: _normalizar_cidade_dashboard(c['label']))
 
     empresas = query.order_by(Empresa.id).all()
+
+    # Chave canônica de cidade por empresa: agrupa variações ("Imbé"/"IMBE")
+    # e alimenta o data-cidade-key de cada card para a contagem client-side.
+    cidade_key_por_empresa = {
+        emp.id: _normalizar_cidade_dashboard(emp.cidade or '')
+        for emp in empresas
+    }
 
     # Pré-computa contadores e status de cada certidão em Python,
     # eliminando dois loops Jinja2 por empresa no template.
@@ -718,10 +732,11 @@ def dashboard():
         certidoes_por_empresa=certidoes_por_empresa,
         status_filtros=status_filtros,
         tipo_filtros=tipo_filtros,
-        estado_filtro=estado_filtro,
-        cidade_filtro=cidade_filtro,
+        estado_filtros=estado_filtros,
+        cidade_filtros=cidade_filtros,
         estados_disponiveis=estados_disponiveis,
-        cidades_disponiveis=cidades_disponiveis,
+        cidades_chips=cidades_chips,
+        cidade_key_por_empresa=cidade_key_por_empresa,
         hoje=hoje,
         a_vencer_dias=a_vencer_dias,
         ordem=ordem,

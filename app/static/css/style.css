@@ -1519,13 +1519,34 @@ footer {
 
 .filtro-dd.open .dd-panel { display: flex; }
 
-.dd-panel .filter-chip { width: 140px; }
+/* largura acompanha o rótulo mais largo (max-content), com piso e teto:
+   nunca fica apertado nem estoura a tela. Chips preenchem a largura do painel. */
+.dd-panel {
+    width: max-content;
+    min-width: 150px;
+    max-width: 280px;
+}
+
+.dd-panel .filter-chip { width: 100%; }
 
 .dd-panel .filter-chip .chip-label {
-    flex: 0 0 auto;
-    justify-content: flex-start;
-    gap: 0.4rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: space-between;
+    gap: 0.5rem;
 }
+
+/* nome da cidade trunca com reticências quando não cabe (ex.: "Capão da Canoa");
+   a contagem nunca é empurrada para fora do chip. */
+.dd-panel .chip-nome {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dd-panel .filter-chip .chip-count { flex: 0 0 auto; }
 
 @media (max-width: 575.98px) {
     .resumo-item { font-size: 0.84rem; padding: 0.28rem 0.55rem; }
@@ -1599,11 +1620,16 @@ footer {
 .btn-check:checked + .chip-fgts,
 .btn-check:checked + .chip-estadual,
 .btn-check:checked + .chip-municipal,
-.btn-check:checked + .chip-trabalhista {
+.btn-check:checked + .chip-trabalhista,
+.btn-check:checked + .chip-estado,
+.btn-check:checked + .chip-cidade {
     background-color: var(--zelo-action-bg) !important;
     color: var(--zelo-action-fg);
     box-shadow: 0 4px 10px color-mix(in srgb, var(--zelo-ink) 22%, transparent);
 }
+
+/* item de cidade escondido pelo recorte "cidade segue o estado" */
+.dd-cidade-item.dd-hidden { display: none; }
 
 [data-bs-theme="dark"] .filter-chip {
     background-color: #2b3035;
