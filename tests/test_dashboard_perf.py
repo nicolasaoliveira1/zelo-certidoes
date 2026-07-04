@@ -8,9 +8,10 @@ Cobre:
 import os
 import re
 import tempfile
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
+import sqlalchemy as sa
 
 from app import db
 from app.models import (
@@ -189,6 +190,64 @@ class TestDashboard:
             cert = Certidao.query.get(ids['trabalhista'])
             cert.data_validade = None
             db.session.commit()
+
+    def test_dashboard_ultima_atualizacao_agrega_max_ignorando_nulos(self, app, client, ids):
+        """data-ultima-atualizacao do card = a atualizacao MAIS RECENTE (max ISO)
+        entre as certidoes da empresa; NULL nao conta se ha ao menos uma data.
+
+        (AC P1-3 e edge 'certidoes mistas': usa a mais recente entre as nao-nulas.)
+        """
+        with app.app_context():
+            emp = Empresa(nome='Aggr SA', cnpj='77.777.777/7777-77',
+                          estado='RS', cidade='Tramandai')
+            db.session.add(emp)
+            db.session.flush()
+            c1 = Certidao(tipo=TipoCertidao.FEDERAL, empresa=emp)
+            c2 = Certidao(tipo=TipoCertidao.FGTS, empresa=emp)
+            c3 = Certidao(tipo=TipoCertidao.MUNICIPAL, empresa=emp)
+            db.session.add_all([c1, c2, c3])
+            db.session.commit()
+            # timestamps conhecidos via Core update (valor explicito nao dispara onupdate)
+            db.session.execute(sa.update(Certidao).where(Certidao.id == c1.id)
+                               .values(atualizado_em=datetime(2024, 1, 1, 9, 0, 0)))
+            db.session.execute(sa.update(Certidao).where(Certidao.id == c2.id)
+                               .values(atualizado_em=datetime(2025, 6, 15, 14, 30, 0)))
+            db.session.execute(sa.update(Certidao).where(Certidao.id == c3.id)
+                               .values(atualizado_em=None))
+            db.session.commit()
+        try:
+            html = client.get('/').data.decode('utf-8')
+            m = re.search(r'data-nome-empresa="Aggr SA"[\s\S]*?data-ultima-atualizacao="([^"]*)"', html)
+            assert m, 'card Aggr SA nao encontrado'
+            assert m.group(1) == '2025-06-15T14:30:00'
+        finally:
+            with app.app_context():
+                db.session.delete(Empresa.query.filter_by(nome='Aggr SA').first())
+                db.session.commit()
+
+    def test_dashboard_ultima_atualizacao_vazia_quando_todas_nulas(self, app, client, ids):
+        """Empresa cujas certidoes tem atualizado_em NULL -> data-attr vazio ''
+        (AC P1-4: sem dado tende ao topo)."""
+        with app.app_context():
+            emp = Empresa(nome='SemData SA', cnpj='88.888.888/8888-88',
+                          estado='RS', cidade='Tramandai')
+            db.session.add(emp)
+            db.session.flush()
+            c1 = Certidao(tipo=TipoCertidao.FEDERAL, empresa=emp)
+            db.session.add(c1)
+            db.session.commit()
+            db.session.execute(sa.update(Certidao).where(Certidao.id == c1.id)
+                               .values(atualizado_em=None))
+            db.session.commit()
+        try:
+            html = client.get('/').data.decode('utf-8')
+            m = re.search(r'data-nome-empresa="SemData SA"[\s\S]*?data-ultima-atualizacao="([^"]*)"', html)
+            assert m, 'card SemData SA nao encontrado'
+            assert m.group(1) == ''
+        finally:
+            with app.app_context():
+                db.session.delete(Empresa.query.filter_by(nome='SemData SA').first())
+                db.session.commit()
 
 
 # ---------------------------------------------------------------------------
