@@ -673,6 +673,7 @@ def dashboard():
     query = db.session.query(Empresa).distinct()
 
     hoje = date.today()
+    _garantir_snapshot_diario()
     a_vencer_dias = get_a_vencer_dias()
     limites_por_tipo = {t: get_a_vencer_dias(tipo=t) for t in TipoCertidao}
     if ordem not in {'urgencia', 'az', 'vencimento', 'atualizacao'}:
@@ -1000,9 +1001,87 @@ def pagina_nova_empresa():
     return render_template('nova_empresa.html', municipios=municipios)
 
 
+_LOTE_STATUS_LABEL = {
+    'completed': 'Concluído',
+    'stopped': 'Interrompido',
+    'error': 'Erro',
+    'paused': 'Pausado',
+}
+
+
+def _classificar_status_certidao(certidao, hoje):
+    """Classifica uma certidão em uma das 5 categorias de status usadas nos
+    relatórios/snapshot: pendentes | sem_data | vencidas | a_vencer | validas."""
+    if certidao.status_especial == StatusEspecial.PENDENTE:
+        return 'pendentes'
+    if not certidao.data_validade:
+        return 'sem_data'
+    if (certidao.data_validade - hoje).days < 0:
+        return 'vencidas'
+    if certidao.status == 'amarelo':
+        return 'a_vencer'
+    return 'validas'
+
+
+_ULTIMO_SNAPSHOT_DIA = None
+
+
+def _garantir_snapshot_diario():
+    """Grava (uma vez por dia, lazy) a foto das contagens por tipo × status.
+    Sem scheduler: dispara na 1ª visita do dia às páginas que a chamam.
+    Best-effort — uma falha nunca deve quebrar a página."""
+    global _ULTIMO_SNAPSHOT_DIA
+    hoje = date.today()
+    if _ULTIMO_SNAPSHOT_DIA == hoje:
+        return
+    try:
+        if db.session.query(SnapshotCertidao.id).filter_by(data=hoje).first():
+            _ULTIMO_SNAPSHOT_DIA = hoje
+            return
+        contagens = {}
+        for certidao in Certidao.query.all():
+            chave = (certidao.tipo.value, _classificar_status_certidao(certidao, hoje))
+            contagens[chave] = contagens.get(chave, 0) + 1
+        for (tipo_valor, status_key), qtd in contagens.items():
+            db.session.add(SnapshotCertidao(
+                data=hoje, tipo=tipo_valor, status=status_key, quantidade=qtd))
+        db.session.commit()
+        _ULTIMO_SNAPSHOT_DIA = hoje
+    except Exception as e:
+        db.session.rollback()
+        log_event('snapshot_certidao_falhou', level='WARNING', error=str(e))
+
+
+def _humanizar_desde(dt, agora):
+    """Descreve há quanto tempo `dt` ocorreu em relação a `agora` (ambos naive,
+    horário local). Retorna string curta pt-BR: "agora", "há 3 h", "ontem",
+    "há 5 dias". Usada nos relatórios para datar atividade recente/pendências."""
+    if dt is None:
+        return '—'
+    delta = agora - dt
+    segundos = delta.total_seconds()
+    if segundos < 0:
+        return 'agora'
+    dias = delta.days
+    if dias == 0:
+        horas = int(segundos // 3600)
+        if horas < 1:
+            minutos = int(segundos // 60)
+            return 'agora' if minutos < 1 else f'há {minutos} min'
+        return f'há {horas} h'
+    if dias == 1:
+        return 'ontem'
+    if dias < 30:
+        return f'há {dias} dias'
+    meses = dias // 30
+    return 'há 1 mês' if meses == 1 else f'há {meses} meses'
+
+
 @bp.route('/relatorios')
 def relatorios():
     hoje = date.today()
+    agora = datetime.now()
+    _garantir_snapshot_diario()
     a_vencer_dias = get_a_vencer_dias()
     empresas_total = Empresa.query.count()
     certidoes = Certidao.query.all()
@@ -1011,20 +1090,128 @@ def relatorios():
     pendentes = 0
     vencidas = 0
     a_vencer = 0
+    validas = 0
+    sem_data = 0
+
+    # distribuição por tipo (ordem canônica do enum) e agrupamentos de pendências
+    por_tipo = {t.value: 0 for t in TipoCertidao}
+    pendentes_por_tipo = {}
+    pendentes_por_cidade = {}
+    lista_pendentes = []
+    ultimas_emitidas = []
 
     for certidao in certidoes:
-        if certidao.status_especial == StatusEspecial.PENDENTE:
+        por_tipo[certidao.tipo.value] += 1
+        st = _classificar_status_certidao(certidao, hoje)
+
+        if st == 'pendentes':
             pendentes += 1
+            tipo_valor = certidao.tipo.value
+            pendentes_por_tipo[tipo_valor] = pendentes_por_tipo.get(tipo_valor, 0) + 1
+            cidade = certidao.empresa.cidade or '—'
+            pendentes_por_cidade[cidade] = pendentes_por_cidade.get(cidade, 0) + 1
+            lista_pendentes.append({
+                'empresa': certidao.empresa.nome,
+                'cidade': certidao.empresa.cidade,
+                'tipo': tipo_valor,
+                'subtipo': certidao.subtipo.value if certidao.subtipo else None,
+                'desde': _humanizar_desde(certidao.atualizado_em, agora),
+                'ordem': certidao.atualizado_em or datetime.min,
+            })
             continue
 
-        if not certidao.data_validade:
+        if st == 'sem_data':
+            sem_data += 1
             continue
 
-        dias_restantes = (certidao.data_validade - hoje).days
-        if dias_restantes < 0:
+        if st == 'vencidas':
             vencidas += 1
-        elif certidao.status == 'amarelo':
+        elif st == 'a_vencer':
             a_vencer += 1
+        else:
+            validas += 1
+
+        # certidão efetivamente emitida (tem validade): candidata a "últimas emitidas"
+        ultimas_emitidas.append({
+            'empresa': certidao.empresa.nome,
+            'cidade': certidao.empresa.cidade,
+            'tipo': certidao.tipo.value,
+            'subtipo': certidao.subtipo.value if certidao.subtipo else None,
+            'validade': certidao.data_validade,
+            'quando': _humanizar_desde(certidao.atualizado_em, agora),
+            'ordem': certidao.atualizado_em or datetime.min,
+        })
+
+    # ordena por atividade mais recente e corta o topo
+    lista_pendentes.sort(key=lambda x: x['ordem'], reverse=True)
+    ultimas_emitidas.sort(key=lambda x: x['ordem'], reverse=True)
+    ultimas_emitidas = ultimas_emitidas[:10]
+
+    # distribuição por tipo na ordem canônica do enum
+    distribuicao_tipo = [(t.value, por_tipo[t.value]) for t in TipoCertidao]
+    # rankings de pendências (maior primeiro)
+    pendentes_tipo_rank = sorted(
+        pendentes_por_tipo.items(), key=lambda x: x[1], reverse=True)
+    pendentes_cidade_rank = sorted(
+        pendentes_por_cidade.items(), key=lambda x: x[1], reverse=True)
+
+    distribuicao_status = [
+        ('Válidas', validas, 'ok'),
+        ('A vencer', a_vencer, 'warn'),
+        ('Vencidas', vencidas, 'danger'),
+        ('Pendentes', pendentes, 'pend'),
+        ('Sem data', sem_data, 'muted'),
+    ]
+
+    # último lote iniciado por tipo × escopo (pendentes / geral). iniciado_em é
+    # gravado em UTC; comparo com utcnow p/ o "há X" e converto p/ local só ao exibir.
+    agora_utc = datetime.utcnow()
+    tz_offset = agora - agora_utc
+    lotes_resumo = []
+    for nome_tipo in ('FGTS', 'Estadual RS', 'Municipal Imbé', 'Municipal Tramandaí'):
+        linha = {'tipo': nome_tipo, 'pendentes': None, 'geral': None}
+        for escopo, chave in (('pendentes', 'pendentes'), ('default', 'geral')):
+            reg = (ExecucaoLote.query
+                   .filter_by(tipo=nome_tipo, escopo=escopo)
+                   .order_by(ExecucaoLote.iniciado_em.desc())
+                   .first())
+            if reg:
+                tem_desfecho = reg.status is not None
+                linha[chave] = {
+                    'tipo': nome_tipo,
+                    'escopo': escopo,
+                    'quando': _humanizar_desde(reg.iniciado_em, agora_utc),
+                    'data_fmt': (reg.iniciado_em + tz_offset).strftime('%d/%m/%Y %H:%M'),
+                    'total': reg.total,
+                    'tem_desfecho': tem_desfecho,
+                    'status_label': _LOTE_STATUS_LABEL.get(reg.status, '—'),
+                    'sucesso': reg.sucesso,
+                    'pendentes_resultado': reg.pendentes_resultado,
+                    'falhas': reg.falhas,
+                    'processados': reg.sucesso + reg.pendentes_resultado + reg.falhas,
+                    'finalizado_fmt': (
+                        (reg.finalizado_em + tz_offset).strftime('%d/%m/%Y %H:%M')
+                        if reg.finalizado_em else None),
+                }
+        lotes_resumo.append(linha)
+
+    # série de evolução por status (foto diária), agregando os snapshots por dia
+    snaps = SnapshotCertidao.query.order_by(SnapshotCertidao.data).all()
+    por_data = {}
+    for s in snaps:
+        dia = por_data.setdefault(s.data, {})
+        dia[s.status] = dia.get(s.status, 0) + s.quantidade
+    serie_status = []
+    for dia in sorted(por_data):
+        linha_dia = por_data[dia]
+        serie_status.append({
+            'label': dia.strftime('%d/%m'),
+            'validas': linha_dia.get('validas', 0),
+            'a_vencer': linha_dia.get('a_vencer', 0),
+            'vencidas': linha_dia.get('vencidas', 0),
+            'pendentes': linha_dia.get('pendentes', 0),
+            'sem_data': linha_dia.get('sem_data', 0),
+        })
 
     return render_template(
         'relatorios.html',
@@ -1034,6 +1221,14 @@ def relatorios():
         vencidas=vencidas,
         a_vencer=a_vencer,
         a_vencer_dias=a_vencer_dias,
+        ultimas_emitidas=ultimas_emitidas,
+        lista_pendentes=lista_pendentes,
+        pendentes_tipo_rank=pendentes_tipo_rank,
+        pendentes_cidade_rank=pendentes_cidade_rank,
+        distribuicao_status=distribuicao_status,
+        distribuicao_tipo=distribuicao_tipo,
+        lotes_resumo=lotes_resumo,
+        serie_status=serie_status,
     )
 
 

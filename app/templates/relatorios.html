@@ -2,6 +2,145 @@
 {% block titulo %}Relatórios{% endblock %}
 
 {% block content %}
+<style>
+    .rel-section-title {
+        font-family: var(--zelo-font-display);
+        font-weight: 600;
+        font-size: 1.05rem;
+        margin-bottom: .25rem;
+    }
+    .rel-num { font-family: var(--zelo-font-mono); }
+    .rel-bar-row {
+        display: grid;
+        grid-template-columns: 8.5rem 1fr 3rem;
+        align-items: center;
+        gap: .75rem;
+        padding: .3rem 0;
+    }
+    .rel-bar-label { font-size: .875rem; }
+    .rel-bar-track {
+        height: .55rem;
+        border-radius: 999px;
+        background: var(--zelo-mist, var(--bs-tertiary-bg));
+        overflow: hidden;
+    }
+    .rel-bar-fill { height: 100%; border-radius: 999px; min-width: 2px; }
+    .rel-bar-count {
+        font-family: var(--zelo-font-mono);
+        font-size: .875rem;
+        text-align: right;
+    }
+    .rel-dot {
+        display: inline-block;
+        width: .55rem;
+        height: .55rem;
+        border-radius: 999px;
+        margin-right: .4rem;
+        vertical-align: middle;
+    }
+    .rel-list-scroll { max-height: 22rem; overflow-y: auto; }
+    .rel-table { font-size: .875rem; }
+    .rel-table td, .rel-table th { vertical-align: middle; }
+    .rel-empresa { font-weight: 500; }
+    .rel-empty {
+        color: var(--bs-secondary-color);
+        font-size: .9rem;
+        padding: .5rem 0;
+    }
+    .rel-rank-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: .4rem 0;
+        border-bottom: 1px solid var(--zelo-line, var(--bs-border-color));
+    }
+    .rel-rank-row:last-child { border-bottom: 0; }
+    .rel-rank-count {
+        font-family: var(--zelo-font-mono);
+        font-weight: 600;
+        color: var(--zelo-pend);
+    }
+    .rel-lote-row {
+        display: grid;
+        grid-template-columns: 11rem 1fr 1fr;
+        gap: 1rem;
+        align-items: center;
+        padding: .65rem 0;
+        border-bottom: 1px solid var(--zelo-line, var(--bs-border-color));
+    }
+    .rel-lote-row:last-child { border-bottom: 0; }
+    .rel-lote-tipo { font-weight: 600; }
+    .rel-lote-cell {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .5rem;
+    }
+    .rel-lote-cell-main { min-width: 0; }
+    .rel-lote-cap {
+        text-transform: uppercase;
+        font-size: .7rem;
+        letter-spacing: .03em;
+        color: var(--bs-secondary-color);
+        display: block;
+        margin-bottom: .1rem;
+    }
+    .rel-lote-when { font-weight: 500; }
+    .rel-lote-when.is-pend { color: var(--zelo-pend); }
+    .rel-lote-meta {
+        font-family: var(--zelo-font-mono);
+        font-size: .78rem;
+        color: var(--bs-secondary-color);
+    }
+    .rel-lote-never { color: var(--bs-secondary-color); }
+    .rel-lote-btn { flex: none; white-space: nowrap; }
+    @media (max-width: 575.98px) {
+        .rel-lote-row { grid-template-columns: 1fr; gap: .35rem; }
+    }
+    /* modal de rendimento */
+    .rend-num-mono { font-family: var(--zelo-font-mono); }
+    .rend-bar {
+        display: flex;
+        height: .6rem;
+        border-radius: 999px;
+        overflow: hidden;
+        background: var(--zelo-mist, var(--bs-tertiary-bg));
+        margin: .25rem 0 1rem;
+    }
+    .rend-bar > span { height: 100%; }
+    .rend-legend-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: .35rem 0;
+        border-bottom: 1px solid var(--zelo-line, var(--bs-border-color));
+    }
+    .rend-legend-row:last-child { border-bottom: 0; }
+    .rend-legend-label { display: flex; align-items: center; }
+    .rend-legend-count { font-family: var(--zelo-font-mono); font-weight: 600; }
+    .rend-dot {
+        display: inline-block;
+        width: .6rem; height: .6rem;
+        border-radius: 999px;
+        margin-right: .5rem;
+    }
+    /* gráficos de linha (SVG vanilla) */
+    .chart-canvas svg { display: block; width: 100%; height: auto; }
+    .chart-grid { stroke: var(--zelo-line, var(--bs-border-color)); stroke-width: 1; }
+    .chart-ylabel, .chart-xlabel {
+        font-family: var(--zelo-font-mono);
+        font-size: 10px;
+        fill: var(--bs-secondary-color);
+    }
+    .chart-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .4rem 1.25rem;
+        margin-top: .75rem;
+    }
+    .chart-legend-item { display: flex; align-items: center; font-size: .8rem; }
+</style>
+
 <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
     <div>
         <h4 class="mb-1 fw-bold">Relatórios</h4>
@@ -9,52 +148,387 @@
     </div>
 </div>
 
+{# ── KPIs ───────────────────────────────────────────────────────────── #}
 <div class="row g-3 mb-4">
-    <div class="col-12 col-md-6 col-xl-3">
+    <div class="col-6 col-md-4 col-xl-2">
         <div class="card border-0 shadow-sm h-100" aria-label="Total de empresas cadastradas">
             <div class="card-body">
                 <p class="text-body-secondary text-uppercase small mb-2">Empresas</p>
-                <h3 class="mb-0 fw-bold">{{ empresas_total }}</h3>
+                <h3 class="mb-0 fw-bold rel-num">{{ empresas_total }}</h3>
             </div>
         </div>
     </div>
-    <div class="col-12 col-md-6 col-xl-3">
-        <div class="card border-0 shadow-sm h-100" aria-label="Total de certidoes emitidas">
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="card border-0 shadow-sm h-100" aria-label="Total de certidoes">
             <div class="card-body">
                 <p class="text-body-secondary text-uppercase small mb-2">Certidões</p>
-                <h3 class="mb-0 fw-bold">{{ total_certidoes }}</h3>
+                <h3 class="mb-0 fw-bold rel-num">{{ total_certidoes }}</h3>
             </div>
         </div>
     </div>
-    <div class="col-12 col-md-6 col-xl-2">
+    <div class="col-6 col-md-4 col-xl-2">
         <div class="card border-0 shadow-sm h-100" aria-label="Total de certidoes pendentes">
             <div class="card-body">
                 <p class="text-body-secondary text-uppercase small mb-2">Pendentes</p>
-                <h3 class="mb-0 fw-bold text-danger">{{ pendentes }}</h3>
+                <h3 class="mb-0 fw-bold rel-num" style="color: var(--zelo-pend)">{{ pendentes }}</h3>
             </div>
         </div>
     </div>
-    <div class="col-12 col-md-6 col-xl-2">
+    <div class="col-6 col-md-4 col-xl-2">
         <div class="card border-0 shadow-sm h-100" aria-label="Total de certidoes vencidas">
             <div class="card-body">
                 <p class="text-body-secondary text-uppercase small mb-2">Vencidas</p>
-                <h3 class="mb-0 fw-bold text-danger">{{ vencidas }}</h3>
+                <h3 class="mb-0 fw-bold rel-num" style="color: var(--zelo-danger)">{{ vencidas }}</h3>
             </div>
         </div>
     </div>
-    <div class="col-12 col-md-6 col-xl-2">
+    <div class="col-6 col-md-4 col-xl-2">
         <div class="card border-0 shadow-sm h-100" aria-label="Total de certidoes a vencer em {{ a_vencer_dias }} dias">
             <div class="card-body">
                 <p class="text-body-secondary text-uppercase small mb-2">A vencer</p>
-                <h3 class="mb-0 fw-bold text-warning">{{ a_vencer }}</h3>
+                <h3 class="mb-0 fw-bold rel-num" style="color: var(--zelo-warn)">{{ a_vencer }}</h3>
             </div>
         </div>
     </div>
 </div>
 
-<div class="card border-0 shadow-sm">
-    <div class="card-body py-4">
-        <p class="mb-0 text-body-secondary">Este painel é um placeholder inicial para a área de relatórios. Na próxima etapa, dá para incluir gráficos por tipo de certidão, evolução mensal e exportação.</p>
+{# ── Últimos lotes emitidos ─────────────────────────────────────────── #}
+{% macro lote_cell(cap, dados, is_pend=False) %}
+<span class="rel-lote-cell">
+    <span class="rel-lote-cell-main">
+        <span class="rel-lote-cap">{{ cap }}</span>
+        {% if dados %}
+        <span class="rel-lote-when {{ 'is-pend' if is_pend else '' }}">{{ dados.quando }}</span>
+        <span class="rel-lote-meta d-block">{{ dados.data_fmt }} · {{ dados.total }} certidão(ões)</span>
+        {% else %}
+        <span class="rel-lote-never">nunca</span>
+        {% endif %}
+    </span>
+    {% if dados %}
+    <button type="button" class="btn btn-sm btn-soft-primary rel-lote-btn"
+            data-bs-toggle="modal" data-bs-target="#modalRendimento"
+            data-tipo="{{ dados.tipo }}" data-escopo="{{ dados.escopo }}"
+            data-quando="{{ dados.data_fmt }}"
+            data-tem-desfecho="{{ '1' if dados.tem_desfecho else '0' }}"
+            data-status="{{ dados.status_label }}"
+            data-total="{{ dados.total }}" data-processados="{{ dados.processados }}"
+            data-sucesso="{{ dados.sucesso }}" data-pendentes="{{ dados.pendentes_resultado }}"
+            data-falhas="{{ dados.falhas }}" data-finalizado="{{ dados.finalizado_fmt or '' }}">
+        Rendimento
+    </button>
+    {% endif %}
+</span>
+{% endmacro %}
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <p class="rel-section-title mb-3">Últimos lotes emitidos</p>
+        {% for l in lotes_resumo %}
+        <div class="rel-lote-row">
+            <span class="rel-lote-tipo">{{ l.tipo }}</span>
+            {{ lote_cell('Pendentes', l.pendentes, is_pend=True) }}
+            {{ lote_cell('Geral (vencidas / a vencer)', l.geral) }}
+        </div>
+        {% endfor %}
     </div>
 </div>
+
+{# ── Distribuição ───────────────────────────────────────────────────── #}
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <p class="rel-section-title mb-3">Certidões por status</p>
+                {% for label, valor, cor in distribuicao_status %}
+                <div class="rel-bar-row">
+                    <span class="rel-bar-label"><span class="rel-dot" style="background: var(--zelo-{{ cor }})"></span>{{ label }}</span>
+                    <span class="rel-bar-track">
+                        <span class="rel-bar-fill" style="width: {{ (valor / total_certidoes * 100) if total_certidoes else 0 }}%; background: var(--zelo-{{ cor }})"></span>
+                    </span>
+                    <span class="rel-bar-count">{{ valor }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <p class="rel-section-title mb-3">Certidões por tipo</p>
+                {% for label, valor in distribuicao_tipo %}
+                <div class="rel-bar-row">
+                    <span class="rel-bar-label">{{ label }}</span>
+                    <span class="rel-bar-track">
+                        <span class="rel-bar-fill" style="width: {{ (valor / total_certidoes * 100) if total_certidoes else 0 }}%; background: var(--zelo-graphite, var(--bs-primary))"></span>
+                    </span>
+                    <span class="rel-bar-count">{{ valor }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Evolução por status (linha, foto diária) ───────────────────────── #}
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <p class="rel-section-title mb-3">Evolução por status</p>
+        {% if serie_status|length >= 2 %}
+        <div class="chart-canvas" id="chartStatus"></div>
+        <div class="chart-legend" id="chartStatusLegend"></div>
+        {% else %}
+        <p class="rel-empty mb-0">O gráfico de evolução aparece a partir de 2 dias de uso — o sistema grava uma foto das contagens por dia. A de hoje já foi registrada; volte em alguns dias.</p>
+        {% endif %}
+    </div>
+</div>
+
+{# ── Últimas certidões emitidas ─────────────────────────────────────── #}
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <p class="rel-section-title mb-3">Últimas certidões emitidas</p>
+        {% if ultimas_emitidas %}
+        <div class="table-responsive">
+            <table class="table table-sm rel-table align-middle mb-0">
+                <thead>
+                    <tr class="text-body-secondary">
+                        <th>Empresa</th>
+                        <th>Cidade</th>
+                        <th>Certidão</th>
+                        <th>Validade</th>
+                        <th class="text-end">Emitida</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in ultimas_emitidas %}
+                    <tr>
+                        <td class="rel-empresa">{{ c.empresa }}</td>
+                        <td class="text-body-secondary">{{ c.cidade }}</td>
+                        <td>{{ c.tipo }}{% if c.subtipo %} · {{ c.subtipo }}{% endif %}</td>
+                        <td class="rel-num">{{ c.validade.strftime('%d/%m/%Y') if c.validade else '—' }}</td>
+                        <td class="text-end text-body-secondary">{{ c.quando }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="rel-empty mb-0">Nenhuma certidão com validade registrada ainda.</p>
+        {% endif %}
+    </div>
+</div>
+
+{# ── Pendentes: rankings ────────────────────────────────────────────── #}
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <p class="rel-section-title">Pendentes por tipo</p>
+                {% if pendentes_tipo_rank %}
+                {% for tipo, qtd in pendentes_tipo_rank %}
+                <div class="rel-rank-row">
+                    <span>{{ tipo }}</span>
+                    <span class="rel-rank-count">{{ qtd }}</span>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="rel-empty mb-0">Nenhuma certidão pendente. 🎉</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <p class="rel-section-title">Pendentes por município</p>
+                {% if pendentes_cidade_rank %}
+                {% for cidade, qtd in pendentes_cidade_rank %}
+                <div class="rel-rank-row">
+                    <span>{{ cidade }}</span>
+                    <span class="rel-rank-count">{{ qtd }}</span>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="rel-empty mb-0">Nenhuma certidão pendente.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Pendentes: lista completa ──────────────────────────────────────── #}
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <p class="rel-section-title">Certidões pendentes</p>
+        <p class="text-body-secondary small mb-3">{{ lista_pendentes|length }} certidão(ões) aguardando resolução.</p>
+        {% if lista_pendentes %}
+        <div class="rel-list-scroll table-responsive">
+            <table class="table table-sm rel-table align-middle mb-0">
+                <thead>
+                    <tr class="text-body-secondary">
+                        <th>Empresa</th>
+                        <th>Cidade</th>
+                        <th>Certidão</th>
+                        <th class="text-end">Pendente</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in lista_pendentes %}
+                    <tr>
+                        <td class="rel-empresa">{{ c.empresa }}</td>
+                        <td class="text-body-secondary">{{ c.cidade }}</td>
+                        <td>{{ c.tipo }}{% if c.subtipo %} · {{ c.subtipo }}{% endif %}</td>
+                        <td class="text-end text-body-secondary">{{ c.desde }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="rel-empty mb-0">Nenhuma certidão pendente no momento.</p>
+        {% endif %}
+    </div>
+</div>
+
+{# ── Modal: rendimento do lote ──────────────────────────────────────── #}
+<div class="modal fade" id="modalRendimento" tabindex="-1" aria-labelledby="modalRendimentoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalRendimentoLabel">Rendimento do lote</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body" id="rendimentoBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendi</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const modal = document.getElementById('modalRendimento');
+    if (!modal) return;
+    const titulo = document.getElementById('modalRendimentoLabel');
+    const corpo = document.getElementById('rendimentoBody');
+
+    modal.addEventListener('show.bs.modal', function (ev) {
+        const btn = ev.relatedTarget;
+        if (!btn) return;
+        const d = btn.dataset;
+        const escopoLabel = d.escopo === 'pendentes' ? 'Pendentes' : 'Geral';
+        titulo.textContent = 'Rendimento — ' + d.tipo + ' · ' + escopoLabel;
+
+        // lote sem desfecho registrado (anterior ao recurso ou ainda rodando)
+        if (d.temDesfecho !== '1') {
+            corpo.innerHTML =
+                '<p class="mb-2">Lote iniciado em <span class="rend-num-mono">' + d.quando + '</span>.</p>' +
+                '<p class="text-body-secondary mb-0">Desfecho ainda não registrado — este lote começou antes deste recurso ou ainda está em andamento.</p>';
+            return;
+        }
+
+        const sucesso = parseInt(d.sucesso || '0', 10);
+        const pend = parseInt(d.pendentes || '0', 10);
+        const falhas = parseInt(d.falhas || '0', 10);
+        const proc = parseInt(d.processados || '0', 10) || (sucesso + pend + falhas);
+        const total = parseInt(d.total || '0', 10);
+        const pct = (n) => proc > 0 ? (n / proc * 100) : 0;
+
+        // para lote de pendentes, "emitidas" = certidões que saíram (viraram negativa)
+        const labelSucesso = d.escopo === 'pendentes' ? 'Emitidas (viraram negativa)' : 'Emitidas';
+
+        let html = '';
+        html += '<div class="d-flex justify-content-between align-items-baseline mb-1">';
+        html += '<span class="text-body-secondary small">' + d.status +
+                (d.finalizado ? ' · ' + d.finalizado : '') + '</span>';
+        html += '<span class="text-body-secondary small">' + proc + ' de ' + total + ' processadas</span>';
+        html += '</div>';
+
+        html += '<div class="rend-bar">';
+        if (sucesso) html += '<span style="width:' + pct(sucesso) + '%;background:var(--zelo-ok)"></span>';
+        if (pend)    html += '<span style="width:' + pct(pend) + '%;background:var(--zelo-pend)"></span>';
+        if (falhas)  html += '<span style="width:' + pct(falhas) + '%;background:var(--zelo-danger)"></span>';
+        html += '</div>';
+
+        const linha = (cor, label, n) =>
+            '<div class="rend-legend-row"><span class="rend-legend-label">' +
+            '<span class="rend-dot" style="background:var(--zelo-' + cor + ')"></span>' + label +
+            '</span><span class="rend-legend-count">' + n + '</span></div>';
+
+        html += linha('ok', labelSucesso, sucesso);
+        html += linha('pend', 'Seguem pendentes', pend);
+        html += linha('danger', 'Falhas técnicas', falhas);
+
+        corpo.innerHTML = html;
+    });
+})();
+</script>
+
+<script>
+(function () {
+    // Gráfico de linha em SVG puro (sem dependência). Cores lidas dos tokens
+    // de status via var(--zelo-*), então acompanham o tema claro/escuro sozinhas.
+    function desenharLinha(el, labels, series) {
+        const W = 720, H = 240;
+        const padL = 32, padR = 22, padT = 12, padB = 26;
+        const plotW = W - padL - padR, plotH = H - padT - padB;
+        const n = labels.length;
+        let yMax = 1;
+        series.forEach(s => s.valores.forEach(v => { if (v > yMax) yMax = v; }));
+        const xAt = i => padL + (n <= 1 ? plotW / 2 : plotW * i / (n - 1));
+        const yAt = v => padT + plotH * (1 - v / yMax);
+        const esc = s => String(s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+
+        let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img">';
+        const steps = 4;
+        for (let g = 0; g <= steps; g++) {
+            const val = Math.round(yMax * g / steps);
+            const y = yAt(val);
+            svg += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y + '" class="chart-grid"/>';
+            svg += '<text x="' + (padL - 6) + '" y="' + (y + 3) + '" class="chart-ylabel" text-anchor="end">' + val + '</text>';
+        }
+        const stepX = Math.max(1, Math.ceil(n / 8));
+        labels.forEach((lb, i) => {
+            if (i % stepX === 0 || i === n - 1) {
+                // primeiro rótulo ancora à esquerda, último à direita — assim
+                // nenhum extrapola a borda do SVG e é cortado
+                const anchor = i === 0 ? 'start' : (i === n - 1 ? 'end' : 'middle');
+                svg += '<text x="' + xAt(i) + '" y="' + (H - 8) + '" class="chart-xlabel" text-anchor="' + anchor + '">' + esc(lb) + '</text>';
+            }
+        });
+        series.forEach(s => {
+            if (n >= 2) {
+                const pts = s.valores.map((v, i) => xAt(i) + ',' + yAt(v)).join(' ');
+                svg += '<polyline points="' + pts + '" fill="none" style="stroke:var(--zelo-' + s.cor + ')" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+            }
+            s.valores.forEach((v, i) => {
+                svg += '<circle cx="' + xAt(i) + '" cy="' + yAt(v) + '" r="' + (n <= 1 ? 3.5 : 2.4) + '" style="fill:var(--zelo-' + s.cor + ')"/>';
+            });
+        });
+        svg += '</svg>';
+        el.innerHTML = svg;
+    }
+
+    function desenharLegenda(el, series) {
+        if (!el) return;
+        el.innerHTML = series.map(s =>
+            '<span class="chart-legend-item"><span class="rel-dot" style="background:var(--zelo-' + s.cor + ')"></span>' + s.nome + '</span>'
+        ).join('');
+    }
+
+    const serieStatus = {{ serie_status | tojson }};
+    const elStatus = document.getElementById('chartStatus');
+    if (elStatus && serieStatus.length >= 2) {
+        const labels = serieStatus.map(d => d.label);
+        const series = [
+            { nome: 'Válidas', cor: 'ok', valores: serieStatus.map(d => d.validas) },
+            { nome: 'A vencer', cor: 'warn', valores: serieStatus.map(d => d.a_vencer) },
+            { nome: 'Vencidas', cor: 'danger', valores: serieStatus.map(d => d.vencidas) },
+            { nome: 'Pendentes', cor: 'pend', valores: serieStatus.map(d => d.pendentes) },
+            { nome: 'Sem data', cor: 'muted', valores: serieStatus.map(d => d.sem_data) },
+        ];
+        desenharLinha(elStatus, labels, series);
+        desenharLegenda(document.getElementById('chartStatusLegend'), series);
+    }
+})();
+</script>
 {% endblock %}
