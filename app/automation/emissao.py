@@ -170,6 +170,7 @@ def _fgts_marcar_pendente_por_impedimento(certidao, mensagem_base=None):
 
     with FGTS_BATCH_LOCK:
         FGTS_BATCH_STATE['fgts_marcadas_pendente'] = FGTS_BATCH_STATE.get('fgts_marcadas_pendente', 0) + 1
+        FGTS_BATCH_STATE['pendentes_resultado'] = FGTS_BATCH_STATE.get('pendentes_resultado', 0) + 1
         FGTS_BATCH_STATE['last_completed'] = {
             'certidao_id': certidao.id,
             'data_formatada': 'PENDENTE',
@@ -531,6 +532,7 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False, 
                 db.session.commit()
 
                 with RS_BATCH_LOCK:
+                    RS_BATCH_STATE['pendentes_resultado'] = RS_BATCH_STATE.get('pendentes_resultado', 0) + 1
                     RS_BATCH_STATE['last_completed'] = {
                         'certidao_id': certidao.id,
                         'data_formatada': 'PENDENTE',
@@ -609,6 +611,7 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False, 
 
             with RS_BATCH_LOCK:
                 RS_BATCH_STATE['positivas'] = RS_BATCH_STATE.get('positivas', 0) + 1
+                RS_BATCH_STATE['pendentes_resultado'] = RS_BATCH_STATE.get('pendentes_resultado', 0) + 1
                 RS_BATCH_STATE['last_completed'] = {
                     'certidao_id': certidao.id,
                     'data_formatada': 'PENDENTE',
@@ -884,6 +887,7 @@ def _emitir_municipal_certidao_lote(certidao_id, driver=None, execution_id=None)
             certidao.status_especial = StatusEspecial.PENDENTE
             certidao.data_validade = None
             db.session.commit()
+            batch_engine.marcar_resultado_pendente(MUNICIPAL_BATCH_STATE, MUNICIPAL_BATCH_LOCK)
             return True, False, 'Certidão sem negativa, marcada como pendente.'
 
         if info_site.get('pre_fill_click_id'):
@@ -928,6 +932,7 @@ def _emitir_municipal_certidao_lote(certidao_id, driver=None, execution_id=None)
             certidao.status_especial = StatusEspecial.PENDENTE
             certidao.data_validade = None
             db.session.commit()
+            batch_engine.marcar_resultado_pendente(MUNICIPAL_BATCH_STATE, MUNICIPAL_BATCH_LOCK)
             return True, False, 'Certidão sem negativa, marcada como pendente.'
 
         if info_site.get('inscricao_field_id'):
@@ -991,6 +996,7 @@ def _emitir_municipal_certidao_lote(certidao_id, driver=None, execution_id=None)
                     certidao.status_especial = StatusEspecial.PENDENTE
                     certidao.data_validade = None
                     db.session.commit()
+                    batch_engine.marcar_resultado_pendente(MUNICIPAL_BATCH_STATE, MUNICIPAL_BATCH_LOCK)
                     return True, False, 'Relatório sem conteúdo. Certidão marcada como pendente.'
                 break
 
@@ -1059,6 +1065,7 @@ def _emitir_municipal_certidao_lote(certidao_id, driver=None, execution_id=None)
                             db.session.rollback()
                             return False, False, 'Erro ao marcar pendente após PDF positivo.'
                         with MUNICIPAL_BATCH_LOCK:
+                            MUNICIPAL_BATCH_STATE['pendentes_resultado'] = MUNICIPAL_BATCH_STATE.get('pendentes_resultado', 0) + 1
                             MUNICIPAL_BATCH_STATE['last_completed'] = {
                                 'certidao_id': certidao.id,
                                 'data_formatada': 'PENDENTE',
@@ -1091,6 +1098,7 @@ def _emitir_municipal_certidao_lote(certidao_id, driver=None, execution_id=None)
         except Exception:
             db.session.rollback()
         with MUNICIPAL_BATCH_LOCK:
+            MUNICIPAL_BATCH_STATE['pendentes_resultado'] = MUNICIPAL_BATCH_STATE.get('pendentes_resultado', 0) + 1
             MUNICIPAL_BATCH_STATE['last_completed'] = {
                 'certidao_id': certidao_id,
                 'data_formatada': 'PENDENTE',
@@ -1200,17 +1208,22 @@ def _emitir_fgts_certidao(certidao_id, driver=None, execution_id=None):
             msg_impedimento = contexto.get('impedimento_msg') or 'Certidão FGTS mantida como pendente.'
 
             if scope_atual == 'default':
+                # _fgts_marcar_pendente_por_impedimento já incrementa
+                # pendentes_resultado ao marcar a certidão como PENDENTE.
                 marcado, msg_marcacao = _fgts_marcar_pendente_por_impedimento(certidao, msg_impedimento)
                 if not marcado:
                     return False, True, msg_marcacao
                 return False, False, msg_marcacao
 
+            # escopo pendentes: já estava PENDENTE e continua PENDENTE.
+            batch_engine.marcar_resultado_pendente(FGTS_BATCH_STATE, FGTS_BATCH_LOCK)
             return False, False, msg_impedimento
 
         if contexto.get('pdf_classificacao') == 'positiva':
             msg_positiva = contexto.get('pdf_msg') or 'Certidão FGTS detectada como POSITIVA e marcada como PENDENTE.'
 
             with FGTS_BATCH_LOCK:
+                FGTS_BATCH_STATE['pendentes_resultado'] = FGTS_BATCH_STATE.get('pendentes_resultado', 0) + 1
                 FGTS_BATCH_STATE['last_completed'] = {
                     'certidao_id': certidao.id,
                     'data_formatada': 'PENDENTE',
