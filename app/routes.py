@@ -600,7 +600,7 @@ def dashboard():
     hoje = date.today()
     a_vencer_dias = get_a_vencer_dias()
     limites_por_tipo = {t: get_a_vencer_dias(tipo=t) for t in TipoCertidao}
-    if ordem not in {'urgencia', 'az', 'vencimento'}:
+    if ordem not in {'urgencia', 'az', 'vencimento', 'atualizacao'}:
         ordem = 'urgencia'
 
     if not status_filtros:

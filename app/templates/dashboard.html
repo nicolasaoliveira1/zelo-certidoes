@@ -241,12 +241,19 @@
 
                         <input type="radio" class="btn-check" id="ordem-atualizacao" name="ordem-opt" value="atualizacao"
                             {% if ordem == 'atualizacao' %}checked{% endif %}>
-                        <label class="filter-chip chip-ordem" for="ordem-atualizacao" data-ordem-label="Última atualização">
+                        <label class="filter-chip chip-ordem" for="ordem-atualizacao" data-ordem-label="Atividade">
                             <i class="bi bi-clock-history"></i>
-                            <span class="chip-label">Última atualização</span>
+                            <span class="chip-label">Atividade</span>
                         </label>
                     </div>
                 </div>
+
+                <button type="button" class="filtro-dd-toggle ordem-dir" id="ordem-atividade-dir"
+                    aria-pressed="false" hidden
+                    title="Inverter: parada há mais tempo primeiro / atualizada mais recentemente primeiro">
+                    <i class="bi bi-arrow-down-up" aria-hidden="true"></i>
+                    <span id="ordem-atividade-dir-label">Paradas primeiro</span>
+                </button>
             </div>
         </div>
     </div>
@@ -2839,16 +2846,39 @@
             const ordemHidden = document.getElementById('ordem-hidden');
             const ordemStorageKey = 'dashboardOrdem';
 
+            // Direcao do modo "Atividade": 'paradas' (padrao, ISO asc — parada ha mais
+            // tempo no topo) ou 'recentes' (ISO desc — atualizada agora no topo).
+            const dirToggle = document.getElementById('ordem-atividade-dir');
+            const dirToggleLabel = document.getElementById('ordem-atividade-dir-label');
+            const ordemDirStorageKey = 'dashboardOrdemAtividadeDir';
+            let dirAtividade = 'paradas';
+
             function getOrdemAtual() {
                 const sel = ordemRadios.find(r => r.checked);
                 return sel ? sel.value : 'urgencia';
+            }
+
+            // Mostra o toggle so no modo Atividade e reflete a direcao atual (label +
+            // aria-pressed). A direcao e puramente client-side (o server ordena por id).
+            function atualizarDirToggleUI() {
+                if (!dirToggle) return;
+                dirToggle.hidden = getOrdemAtual() !== 'atualizacao';
+                const recentes = dirAtividade === 'recentes';
+                dirToggle.setAttribute('aria-pressed', recentes ? 'true' : 'false');
+                if (dirToggleLabel) {
+                    dirToggleLabel.textContent = recentes ? 'Recentes primeiro' : 'Paradas primeiro';
+                }
             }
 
             function atualizarBadgeOrdem() {
                 if (!ordemBadge) return;
                 const sel = ordemRadios.find(r => r.checked);
                 const lbl = sel ? document.querySelector('label[for="' + sel.id + '"]') : null;
-                ordemBadge.textContent = lbl ? (lbl.dataset.ordemLabel || lbl.textContent.trim()) : 'Urgência';
+                let texto = lbl ? (lbl.dataset.ordemLabel || lbl.textContent.trim()) : 'Urgência';
+                if (sel && sel.value === 'atualizacao') {
+                    texto += dirAtividade === 'recentes' ? ' · recentes 1º' : ' · paradas 1º';
+                }
+                ordemBadge.textContent = texto;
             }
 
             const todasCheckbox = document.getElementById('status-todas');
@@ -2888,6 +2918,9 @@
                     localStorage.setItem(ordemStorageKey, getOrdemAtual());
                 }
                 if (ordemHidden) ordemHidden.value = getOrdemAtual();
+                const dirSalva = localStorage.getItem(ordemDirStorageKey);
+                if (dirSalva === 'recentes' || dirSalva === 'paradas') dirAtividade = dirSalva;
+                atualizarDirToggleUI();
                 atualizarBadgeOrdem();
                 ordenarCards();
             }
@@ -3018,11 +3051,16 @@
                         return nomeA.localeCompare(nomeB);
                     }
                     if (ordem === 'atualizacao') {
-                        // Parada ha mais tempo primeiro: ISO ascendente. Sem dado ('')
-                        // ordena antes de qualquer ISO -> vai ao topo. Empate -> nome.
+                        // 'paradas' (padrao): ISO ascendente — parada ha mais tempo no topo;
+                        // sem dado ('') vem antes de qualquer ISO (topo). 'recentes': inverte
+                        // (desc) — atualizada agora no topo, sem dado cai pro fim. Nome sempre
+                        // desempata A->Z, independente da direcao.
                         const atA = a.dataset.ultimaAtualizacao || '';
                         const atB = b.dataset.ultimaAtualizacao || '';
-                        if (atA !== atB) return atA.localeCompare(atB);
+                        if (atA !== atB) {
+                            const cmp = atA.localeCompare(atB);
+                            return dirAtividade === 'recentes' ? -cmp : cmp;
+                        }
                         return nomeA.localeCompare(nomeB);
                     }
                     return compararUrgencia(a, b, nomeA, nomeB);
@@ -3145,11 +3183,22 @@
                     if (!radio.checked) return;
                     localStorage.setItem(ordemStorageKey, radio.value);
                     if (ordemHidden) ordemHidden.value = radio.value;
+                    atualizarDirToggleUI();
                     atualizarBadgeOrdem();
                     ordenarCards();
                     fecharTodosDropdowns();
                 });
             });
+
+            if (dirToggle) {
+                dirToggle.addEventListener('click', function () {
+                    dirAtividade = dirAtividade === 'recentes' ? 'paradas' : 'recentes';
+                    localStorage.setItem(ordemDirStorageKey, dirAtividade);
+                    atualizarDirToggleUI();
+                    atualizarBadgeOrdem();
+                    ordenarCards();
+                });
+            }
 
             // Dropdowns de chips (Estado/Cidade/Tipo): abre no toggle (fechando os demais),
             // fecha ao clicar fora ou Esc; clicar nos chips dentro não fecha.
