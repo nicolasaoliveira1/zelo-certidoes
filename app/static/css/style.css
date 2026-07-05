@@ -798,6 +798,11 @@ footer {
     background: rgba(220, 53, 69, 0.08);
 }
 
+.batch-summary-card.is-pending {
+    border-color: color-mix(in srgb, var(--zelo-pend) 30%, transparent);
+    background: color-mix(in srgb, var(--zelo-pend) 10%, transparent);
+}
+
 .batch-summary-label {
     display: block;
     font-size: 0.78rem;

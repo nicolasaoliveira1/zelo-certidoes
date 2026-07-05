@@ -663,6 +663,11 @@
                             <strong class="batch-summary-value" id="fgtsBatchSummaryEmitidas">0</strong>
                         </div>
 
+                        <div class="batch-summary-card is-pending">
+                            <span class="batch-summary-label">Pendentes</span>
+                            <strong class="batch-summary-value" id="fgtsBatchSummaryPendentes">0</strong>
+                        </div>
+
                         <div class="batch-summary-card is-danger" id="fgtsBatchSummaryOutcomeCard">
                             <span class="batch-summary-label" id="fgtsBatchSummaryOutcomeLabel">Falhas</span>
                             <strong class="batch-summary-value" id="fgtsBatchSummaryFalhas">0</strong>
@@ -743,6 +748,11 @@
                         <div class="batch-summary-card is-success">
                             <span class="batch-summary-label">Emitidas</span>
                             <strong class="batch-summary-value" id="rsBatchSummaryEmitidas">0</strong>
+                        </div>
+
+                        <div class="batch-summary-card is-pending">
+                            <span class="batch-summary-label">Pendentes</span>
+                            <strong class="batch-summary-value" id="rsBatchSummaryPendentes">0</strong>
                         </div>
 
                         <div class="batch-summary-card is-danger" id="rsBatchSummaryOutcomeCard">
@@ -842,6 +852,11 @@
                             <strong class="batch-summary-value" id="municipalBatchSummaryEmitidas">0</strong>
                         </div>
 
+                        <div class="batch-summary-card is-pending">
+                            <span class="batch-summary-label">Pendentes</span>
+                            <strong class="batch-summary-value" id="municipalBatchSummaryPendentes">0</strong>
+                        </div>
+
                         <div class="batch-summary-card is-danger" id="municipalBatchSummaryOutcomeCard">
                             <span class="batch-summary-label" id="municipalBatchSummaryOutcomeLabel">Falhas</span>
                             <strong class="batch-summary-value" id="municipalBatchSummaryFalhas">0</strong>
@@ -876,6 +891,7 @@
             </p>
             <p class="text-light fw-semibold mb-2" id="rsBatchProgress" aria-live="polite">0/0 concluídas</p>
             <p class="text-light fw-semibold mb-2" id="rsBatchFalhas">Falhas: 0</p>
+            <p class="text-light fw-semibold mb-2" id="rsBatchPendentes">Pendentes: 0</p>
             <p class="text-light fw-semibold mb-2" id="rsBatchSuccess">Sucessos: 0</p>
             <p class="text-light fw-semibold mb-2" id="rsBatchRemaining">Restantes: 0</p>
             <p class="text-light small mb-2 d-none" id="rsBatchLastMessage" aria-live="polite"></p>
@@ -897,6 +913,7 @@
             </p>
             <p class="text-light fw-semibold mb-2" id="fgtsBatchProgress" aria-live="polite">0/0 concluídas</p>
             <p class="text-light fw-semibold mb-2" id="fgtsBatchFalhas">Falhas: 0</p>
+            <p class="text-light fw-semibold mb-2" id="fgtsBatchPendentes">Pendentes: 0</p>
             <p class="text-light fw-semibold mb-2" id="fgtsBatchSuccess">Sucessos: 0</p>
             <p class="text-light fw-semibold mb-2" id="fgtsBatchRemaining">Restantes: 0</p>
             <p class="text-light small mb-2 d-none" id="fgtsBatchLastMessage" aria-live="polite"></p>
@@ -918,6 +935,7 @@
             </p>
             <p class="text-light fw-semibold mb-2" id="municipalBatchProgress" aria-live="polite">0/0 concluídas</p>
             <p class="text-light fw-semibold mb-2" id="municipalBatchFalhas">Falhas: 0</p>
+            <p class="text-light fw-semibold mb-2" id="municipalBatchPendentes">Pendentes: 0</p>
             <p class="text-light fw-semibold mb-2" id="municipalBatchSuccess">Sucessos: 0</p>
             <p class="text-light fw-semibold mb-2" id="municipalBatchRemaining">Restantes: 0</p>
             <p class="text-light small mb-2 d-none" id="municipalBatchLastMessage" aria-live="polite"></p>
@@ -1184,6 +1202,7 @@
             const fgtsBatchSummaryOutcomeCard = document.getElementById('fgtsBatchSummaryOutcomeCard');
             const fgtsBatchSummaryOutcomeLabel = document.getElementById('fgtsBatchSummaryOutcomeLabel');
             const fgtsBatchSummaryFalhas = document.getElementById('fgtsBatchSummaryFalhas');
+            const fgtsBatchSummaryPendentes = document.getElementById('fgtsBatchSummaryPendentes');
             const fgtsBatchSummaryTotal = document.getElementById('fgtsBatchSummaryTotal');
             const fgtsBatchSummaryTempo = document.getElementById('fgtsBatchSummaryTempo');
             const fgtsBatchSummaryTaxa = document.getElementById('fgtsBatchSummaryTaxa');
@@ -1192,6 +1211,7 @@
             const fgtsBatchOverlay = document.getElementById('fgts-batch-overlay');
             const fgtsBatchProgress = document.getElementById('fgtsBatchProgress');
             const fgtsBatchFalhas = document.getElementById('fgtsBatchFalhas');
+            const fgtsBatchPendentes = document.getElementById('fgtsBatchPendentes');
             const fgtsBatchSuccess = document.getElementById('fgtsBatchSuccess');
             const fgtsBatchRemaining = document.getElementById('fgtsBatchRemaining');
             const fgtsBatchLastMessage = document.getElementById('fgtsBatchLastMessage');
@@ -1220,6 +1240,7 @@
             const rsBatchSummaryOutcomeCard = document.getElementById('rsBatchSummaryOutcomeCard');
             const rsBatchSummaryOutcomeLabel = document.getElementById('rsBatchSummaryOutcomeLabel');
             const rsBatchSummaryFalhas = document.getElementById('rsBatchSummaryFalhas');
+            const rsBatchSummaryPendentes = document.getElementById('rsBatchSummaryPendentes');
             const rsBatchSummaryPositivas = document.getElementById('rsBatchSummaryPositivas');
             const rsBatchSummaryNegativas = document.getElementById('rsBatchSummaryNegativas');
             const rsBatchSummaryEfeitoNegativas = document.getElementById('rsBatchSummaryEfeitoNegativas');
@@ -1230,6 +1251,7 @@
             const rsBatchOverlay = document.getElementById('rs-batch-overlay');
             const rsBatchProgress = document.getElementById('rsBatchProgress');
             const rsBatchFalhas = document.getElementById('rsBatchFalhas');
+            const rsBatchPendentes = document.getElementById('rsBatchPendentes');
             const rsBatchSuccess = document.getElementById('rsBatchSuccess');
             const rsBatchRemaining = document.getElementById('rsBatchRemaining');
             const rsBatchLastMessage = document.getElementById('rsBatchLastMessage');
@@ -1258,6 +1280,7 @@
             const municipalBatchSummaryOutcomeCard = document.getElementById('municipalBatchSummaryOutcomeCard');
             const municipalBatchSummaryOutcomeLabel = document.getElementById('municipalBatchSummaryOutcomeLabel');
             const municipalBatchSummaryFalhas = document.getElementById('municipalBatchSummaryFalhas');
+            const municipalBatchSummaryPendentes = document.getElementById('municipalBatchSummaryPendentes');
             const municipalBatchSummaryTotal = document.getElementById('municipalBatchSummaryTotal');
             const municipalBatchSummaryTempo = document.getElementById('municipalBatchSummaryTempo');
             const municipalBatchSummaryTaxa = document.getElementById('municipalBatchSummaryTaxa');
@@ -1266,6 +1289,7 @@
             const municipalBatchOverlay = document.getElementById('municipal-batch-overlay');
             const municipalBatchProgress = document.getElementById('municipalBatchProgress');
             const municipalBatchFalhas = document.getElementById('municipalBatchFalhas');
+            const municipalBatchPendentes = document.getElementById('municipalBatchPendentes');
             const municipalBatchSuccess = document.getElementById('municipalBatchSuccess');
             const municipalBatchRemaining = document.getElementById('municipalBatchRemaining');
             const municipalBatchLastMessage = document.getElementById('municipalBatchLastMessage');
@@ -2250,12 +2274,11 @@
             }
 
             function applySummaryOutcomeVisual(scope, labelEl, cardEl) {
+                // As certidões que terminam pendentes agora têm card próprio
+                // ("Pendentes"), então o card de desfecho é sempre "Falhas"
+                // (apenas erro técnico), em qualquer escopo (normal ou pendentes).
                 if (!labelEl || !cardEl) return;
-
-                const scopeNorm = normalizeBatchScope(scope);
-                const isPendentes = scopeNorm === 'pendentes';
-
-                labelEl.textContent = isPendentes ? 'Pendentes' : 'Falhas';
+                labelEl.textContent = 'Falhas';
                 cardEl.classList.remove('is-warning');
                 cardEl.classList.add('is-danger');
             }
@@ -2294,6 +2317,7 @@
 
                             if (config.progressEl) config.progressEl.textContent = `${index}/${total} concluídas`;
                             if (config.falhasEl) config.falhasEl.textContent = `Falhas: ${data.falhas || 0}`;
+                            if (config.pendentesEl) config.pendentesEl.textContent = `Pendentes: ${data.pendentes_resultado || 0}`;
                             if (config.successEl) config.successEl.textContent = `Sucessos: ${data.success || 0}`;
                             if (config.remainingEl) config.remainingEl.textContent = `Restantes: ${remaining}`;
                             applyLastMessage(config.lastMessageEl, data);
@@ -2313,6 +2337,7 @@
 
                                 const success = Number(data.success || 0);
                                 const falhas = Number(data.falhas || 0);
+                                const pendentes = Number(data.pendentes_resultado || 0);
                                 const total = Number(data.total || 0);
                                 const scopeAtual = normalizeBatchScope(
                                     data.scope || (config.getBatchScope ? config.getBatchScope() : 'default')
@@ -2326,9 +2351,13 @@
 
                                 if (config.summaryEmitidasEl) config.summaryEmitidasEl.textContent = success;
                                 if (config.summaryFalhasEl) config.summaryFalhasEl.textContent = falhas;
+                                if (config.summaryPendentesEl) config.summaryPendentesEl.textContent = pendentes;
                                 if (config.summaryTotalEl) config.summaryTotalEl.textContent = total;
                                 if (config.summaryTempoEl) config.summaryTempoEl.textContent = calcularTempoLote(data);
-                                if (config.summaryTaxaEl) config.summaryTaxaEl.textContent = calcularTaxaSucesso(success, total);
+                                // Taxa de sucesso = itens concluídos sem erro técnico
+                                // (emitidas + pendentes) / total. Uma certidão pendente
+                                // é um desfecho legítimo da automação, não uma falha.
+                                if (config.summaryTaxaEl) config.summaryTaxaEl.textContent = calcularTaxaSucesso(success + pendentes, total);
 
                                 if (config.summaryNoticeEl) {
                                     const qtdPendentes = Number(data.fgts_marcadas_pendente || 0);
@@ -2501,6 +2530,7 @@
                 getTipoCert: () => fgtsBatchTipoCert,
                 progressEl: fgtsBatchProgress,
                 falhasEl: fgtsBatchFalhas,
+                pendentesEl: fgtsBatchPendentes,
                 successEl: fgtsBatchSuccess,
                 remainingEl: fgtsBatchRemaining,
                 lastMessageEl: fgtsBatchLastMessage,
@@ -2516,6 +2546,7 @@
                 summaryOutcomeCardEl: fgtsBatchSummaryOutcomeCard,
                 summaryOutcomeLabelEl: fgtsBatchSummaryOutcomeLabel,
                 summaryFalhasEl: fgtsBatchSummaryFalhas,
+                summaryPendentesEl: fgtsBatchSummaryPendentes,
                 summaryTotalEl: fgtsBatchSummaryTotal,
                 summaryTempoEl: fgtsBatchSummaryTempo,
                 summaryTaxaEl: fgtsBatchSummaryTaxa,
@@ -2553,6 +2584,7 @@
                 getTipoCert: () => rsBatchTipoCert,
                 progressEl: rsBatchProgress,
                 falhasEl: rsBatchFalhas,
+                pendentesEl: rsBatchPendentes,
                 successEl: rsBatchSuccess,
                 remainingEl: rsBatchRemaining,
                 lastMessageEl: rsBatchLastMessage,
@@ -2568,6 +2600,7 @@
                 summaryOutcomeCardEl: rsBatchSummaryOutcomeCard,
                 summaryOutcomeLabelEl: rsBatchSummaryOutcomeLabel,
                 summaryFalhasEl: rsBatchSummaryFalhas,
+                summaryPendentesEl: rsBatchSummaryPendentes,
                 summaryTotalEl: rsBatchSummaryTotal,
                 summaryTempoEl: rsBatchSummaryTempo,
                 summaryTaxaEl: rsBatchSummaryTaxa,
@@ -2609,6 +2642,7 @@
                 getTipoCert: () => municipalBatchTipoCert,
                 progressEl: municipalBatchProgress,
                 falhasEl: municipalBatchFalhas,
+                pendentesEl: municipalBatchPendentes,
                 successEl: municipalBatchSuccess,
                 remainingEl: municipalBatchRemaining,
                 lastMessageEl: municipalBatchLastMessage,
@@ -2624,6 +2658,7 @@
                 summaryOutcomeCardEl: municipalBatchSummaryOutcomeCard,
                 summaryOutcomeLabelEl: municipalBatchSummaryOutcomeLabel,
                 summaryFalhasEl: municipalBatchSummaryFalhas,
+                summaryPendentesEl: municipalBatchSummaryPendentes,
                 summaryTotalEl: municipalBatchSummaryTotal,
                 summaryTempoEl: municipalBatchSummaryTempo,
                 summaryTaxaEl: municipalBatchSummaryTaxa,
