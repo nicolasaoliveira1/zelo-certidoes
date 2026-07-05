@@ -211,6 +211,37 @@ def _parse_batch_scope(raw_scope):
     return 'default'
 
 
+def _registrar_desfecho_lote(state):
+    """Grava o desfecho do lote na ExecucaoLote correspondente (casada pelo
+    execution_id). Chamada por run_batch_loop no fim (on_finish). Best-effort.
+
+    Roda em toda saída do loop (inclusive pausa): quando o lote é retomado e
+    conclui, o mesmo registro é sobrescrito com os números finais."""
+    execution_id = state.get('execution_id')
+    if not execution_id:
+        return
+    try:
+        registro = (ExecucaoLote.query
+                    .filter_by(execution_id=execution_id)
+                    .order_by(ExecucaoLote.id.desc())
+                    .first())
+        if registro is None:
+            return
+        status = state.get('status')
+        terminal = status in ('completed', 'stopped', 'error')
+        registro.status = status
+        registro.sucesso = state.get('success', 0)
+        registro.pendentes_resultado = state.get('pendentes_resultado', 0)
+        registro.falhas = state.get('falhas', 0)
+        registro.finalizado_em = state.get('finished_at') or (
+            datetime.utcnow() if terminal else None)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        log_event('execucao_lote_desfecho_falhou', level='WARNING',
+                  execution_id=execution_id, error=str(e))
+
+
 def _rs_batch_worker(app):
     def _on_setup(_app):
         return _ativar_politica_autoselect_rs_temporaria()
@@ -234,6 +265,7 @@ def _rs_batch_worker(app):
         eager_driver=True,
         on_setup=_on_setup,
         on_teardown=_on_teardown,
+        on_finish=_registrar_desfecho_lote,
     )
 
 
@@ -250,6 +282,7 @@ def _municipal_batch_worker(app):
         tag='MUNICIPAL-LOTE',
         event_prefix='municipal_batch_worker',
         create_driver=_criar_driver_chrome,
+        on_finish=_registrar_desfecho_lote,
     )
 
 
@@ -283,6 +316,7 @@ def _fgts_batch_worker(app):
         event_prefix='fgts_batch_worker',
         create_driver=_criar_driver_chrome,
         recover_fn=_recover,
+        on_finish=_registrar_desfecho_lote,
     )
 
 
@@ -312,6 +346,40 @@ def _preflight_precondicao(base=None, precisa_solver=False):
                 return erro
         return _preflight_erro(precisa_solver=precisa_solver)
     return _checar
+
+
+def _rotulo_execucao_municipal(certidao_id):
+    """Rótulo do registro de execução do lote municipal, separado por cidade
+    (Imbé / Tramandaí), já que cada lote municipal roda para uma cidade só."""
+    try:
+        certidao = Certidao.query.get(certidao_id)
+        cidade = (certidao.empresa.cidade or '').strip() if certidao else ''
+    except Exception:
+        cidade = ''
+    norm = file_manager.remover_acentos(cidade).upper()
+    if norm == 'IMBE':
+        return 'Municipal Imbé'
+    if norm == 'TRAMANDAI':
+        return 'Municipal Tramandaí'
+    return 'Municipal'
+
+
+def _registrar_execucao_lote(nome_lote, scope, total, execution_id):
+    """Grava (persistente) o início de um lote para o relatório "último lote".
+    Best-effort: uma falha ao gravar nunca deve impedir o lote de iniciar."""
+    try:
+        db.session.add(ExecucaoLote(
+            tipo=nome_lote,
+            escopo=scope or 'default',
+            total=total or 0,
+            iniciado_em=datetime.utcnow(),
+            execution_id=execution_id,
+        ))
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        log_event('execucao_lote_registro_falhou', level='WARNING',
+                  lote=nome_lote, error=str(e))
 
 
 def _register_batch_routes(prefix, endpoint_base, cfg):
@@ -359,6 +427,10 @@ def _register_batch_routes(prefix, endpoint_base, cfg):
             cfg['started_event'], status='running', scope=scope,
             total=dados_lote['total'], execution_id=state.get('execution_id'),
         )
+        rotulo_fn = cfg.get('rotulo_execucao')
+        rotulo = rotulo_fn(certidao_id) if rotulo_fn else nome
+        _registrar_execucao_lote(
+            rotulo or nome, scope, dados_lote['total'], state.get('execution_id'))
         with lock:
             batch_engine.append_batch_message(
                 state, f"Lote {nome} iniciado. Total={dados_lote['total']}.", level='info')
@@ -431,6 +503,7 @@ _register_batch_routes('/estadual-rs', 'estadual_rs_lote', {
 _register_batch_routes('/municipal', 'municipal_lote', {
     'lock': MUNICIPAL_BATCH_LOCK, 'state': MUNICIPAL_BATCH_STATE,
     'worker': _municipal_batch_worker, 'calc_targets': _calc_municipal_targets_by_scope,
+    'rotulo_execucao': _rotulo_execucao_municipal,
     'started_event': 'municipal_batch_started', 'tag': None, 'nome_lote': 'Municipal',
     'precondicao': _preflight_precondicao(),
     'msg_em_andamento': 'Já existe um lote Municipal em andamento.',

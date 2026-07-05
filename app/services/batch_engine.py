@@ -130,6 +130,7 @@ def run_batch_loop(
     on_setup=None,
     on_teardown=None,
     recover_fn=None,
+    on_finish=None,
 ):
     """Loop generico de lote compartilhado por FGTS, Estadual RS e Municipal.
 
@@ -146,6 +147,8 @@ def run_batch_loop(
       recover_fn(certidao_id, execution_id, driver, sucesso, grave, mensagem)
         -> (driver, sucesso, grave, mensagem): recuperacao opcional pos-emissao
         (ex.: recriar driver do FGTS apos falha de carregamento).
+      on_finish(state): hook opcional no finally (contexto de app ativo) para
+        gravar o desfecho do lote; best-effort, excecoes sao engolidas.
     """
     with app.app_context():
         driver = None
@@ -269,6 +272,12 @@ def run_batch_loop(
             if on_teardown:
                 try:
                     on_teardown(setup_ctx)
+                except Exception:
+                    pass
+            if on_finish:
+                # desfecho do lote (contexto de app ainda ativo aqui); best-effort
+                try:
+                    on_finish(state)
                 except Exception:
                     pass
             log_event(f'{event_prefix}_end', status=state.get('status'), tag=tag)

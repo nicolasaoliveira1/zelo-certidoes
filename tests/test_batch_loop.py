@@ -238,6 +238,40 @@ def test_setup_teardown_called():
     print('ok test_setup_teardown_called')
 
 
+def test_on_finish_called_com_estado_final():
+    # on_finish recebe o state final (com contadores) — usado para gravar o
+    # desfecho do lote (ExecucaoLote). Deve rodar no fim, mesmo com falha.
+    state = make_state([1, 2])
+    emit = make_emit([(True, False, None), (False, False, 'x')])
+    capturado = {}
+
+    def on_finish(st):
+        capturado['status'] = st['status']
+        capturado['success'] = st['success']
+        capturado['falhas'] = st['falhas']
+
+    run(state, emit, on_finish=on_finish)
+    assert capturado.get('status') == 'completed', capturado
+    assert capturado.get('success') == 1, capturado
+    assert capturado.get('falhas') == 1, capturado
+    print('ok test_on_finish_called_com_estado_final')
+
+
+def test_on_finish_called_em_erro_grave():
+    state = make_state([1, 2])
+    emit = make_emit([(False, True, 'boom')])
+    chamado = {'n': 0, 'status': None}
+
+    def on_finish(st):
+        chamado['n'] += 1
+        chamado['status'] = st['status']
+
+    run(state, emit, on_finish=on_finish)
+    assert chamado['n'] == 1, chamado
+    assert chamado['status'] == 'error', chamado
+    print('ok test_on_finish_called_em_erro_grave')
+
+
 def main():
     tests = [
         test_all_success,
@@ -251,6 +285,8 @@ def main():
         test_recover_fn,
         test_eager_driver_created_once,
         test_setup_teardown_called,
+        test_on_finish_called_com_estado_final,
+        test_on_finish_called_em_erro_grave,
     ]
     for t in tests:
         t()
