@@ -167,6 +167,63 @@ class EventoDiagnostico(db.Model):
         return f'<EventoDiagnostico {self.nivel} {self.evento}>'
 
 
+class ExecucaoLote(db.Model):
+    """Registro persistente de cada lote iniciado (FGTS, Estadual RS, Municipal).
+
+    Sobrevive a reinicios do sistema (o batch_state em memoria nao). Alimenta o
+    relatorio "quando foi o ultimo lote de X" — evita reprocessar pendentes cedo
+    demais e gastar creditos de captcha à toa. Grava-se no INICIO do lote, pois é
+    quando os creditos passam a ser consumidos."""
+    __tablename__ = 'execucao_lote'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # nome do lote conforme cfg['nome_lote']: 'FGTS' | 'Estadual RS' | 'Municipal'
+    tipo = db.Column(db.String(30), nullable=False, index=True)
+    # escopo do lote: 'pendentes' (reprocessa positivas) | 'default' (vencidas/a vencer)
+    escopo = db.Column(db.String(20), nullable=False, default='default')
+    total = db.Column(db.Integer, nullable=False, default=0)
+    iniciado_em = db.Column(
+        db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    execution_id = db.Column(db.String(40), nullable=True)
+
+    # desfecho do lote (gravado no fim de run_batch_loop via on_finish). Null
+    # enquanto roda / se o lote começou antes deste recurso. status:
+    # 'completed' | 'stopped' | 'error' | 'paused'. Para escopo 'pendentes',
+    # `sucesso` = pendentes que emitiram (viraram negativa) e `pendentes_resultado`
+    # = as que seguiram pendentes.
+    finalizado_em = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(20), nullable=True)
+    sucesso = db.Column(db.Integer, nullable=False, default=0)
+    pendentes_resultado = db.Column(db.Integer, nullable=False, default=0)
+    falhas = db.Column(db.Integer, nullable=False, default=0)
+
+    def __repr__(self):
+        return f'<ExecucaoLote {self.tipo}/{self.escopo} {self.iniciado_em}>'
+
+
+class SnapshotCertidao(db.Model):
+    """Foto diária das contagens de certidões por tipo × status, para o gráfico
+    de evolução no tempo (ex.: pendentes descendo). Não há histórico reconstruível
+    a partir da Certidao (o estado é sobrescrito), então acumulamos uma foto por
+    dia. Gravada de forma lazy (sem scheduler) na 1ª visita do dia."""
+    __tablename__ = 'snapshot_certidao'
+
+    id = db.Column(db.Integer, primary_key=True)
+    data = db.Column(db.Date, nullable=False, index=True)
+    tipo = db.Column(db.String(20), nullable=False)  # TipoCertidao.value
+    # validas | a_vencer | vencidas | pendentes | sem_data
+    status = db.Column(db.String(12), nullable=False)
+    quantidade = db.Column(db.Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        db.UniqueConstraint('data', 'tipo', 'status',
+                            name='uq_snapshot_dia_tipo_status'),
+    )
+
+    def __repr__(self):
+        return f'<SnapshotCertidao {self.data} {self.tipo}/{self.status}={self.quantidade}>'
+
+
 class ConfiguracaoSistema(db.Model):
     __tablename__ = 'configuracao_sistema'
 
