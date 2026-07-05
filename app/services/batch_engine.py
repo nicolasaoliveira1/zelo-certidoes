@@ -19,6 +19,7 @@ def batch_state_defaults():
         'a_vencer': 0,
         'pendentes': 0,
         'falhas': 0,
+        'pendentes_resultado': 0,
         'current_id': None,
         'message': None,
         'stop_requested': False,
@@ -57,6 +58,7 @@ def build_batch_status_payload(batch_state):
         'vencidas': batch_state['vencidas'],
         'a_vencer': batch_state['a_vencer'],
         'pendentes': batch_state.get('pendentes', 0),
+        'pendentes_resultado': batch_state.get('pendentes_resultado', 0),
         'message': batch_state['message'],
         'last_messages': list(batch_state.get('last_messages', [])),
         'last_completed': batch_state.get('last_completed'),
@@ -86,6 +88,25 @@ def append_batch_message(batch_state, message, level='info', certidao_id=None, m
         del messages[:-max_items]
 
     batch_state['message'] = message
+
+
+def marcar_resultado_pendente(state, lock=None):
+    """Sinaliza que o item atual do lote terminou PENDENTE (certidão positiva,
+    sem negativa, impedimento, CNPJ não cadastrado, em processamento...).
+
+    Esse desfecho não é sucesso (nada foi emitido) nem falha técnica: é uma
+    terceira categoria. O `run_batch_loop` detecta o incremento e contabiliza o
+    item em `pendentes_resultado` em vez de `success`/`falhas`. Usado pelos três
+    fluxos (FGTS, Estadual RS e Municipal) para padronizar o resumo do lote.
+    """
+    def _inc():
+        state['pendentes_resultado'] = state.get('pendentes_resultado', 0) + 1
+
+    if lock is not None:
+        with lock:
+            _inc()
+    else:
+        _inc()
 
 
 def run_worker(worker_fn, app_factory):
@@ -183,6 +204,7 @@ def run_batch_loop(
                 if driver is None and create_driver:
                     driver = create_driver()
 
+                pendentes_antes = state.get('pendentes_resultado', 0)
                 sucesso, grave, mensagem = emit_fn(certidao_id, driver, execution_id)
 
                 if recover_fn:
@@ -205,7 +227,22 @@ def run_batch_loop(
                         )
                         break
 
-                    if not sucesso:
+                    # A emissão sinaliza um desfecho "pendente" (positiva, sem
+                    # negativa, impedimento, CNPJ não cadastrado...) chamando
+                    # marcar_resultado_pendente, que incrementa pendentes_resultado.
+                    # Esse desfecho é uma 3ª categoria: nem sucesso (nada emitido)
+                    # nem falha técnica.
+                    resultou_pendente = state.get('pendentes_resultado', 0) > pendentes_antes
+
+                    if resultou_pendente:
+                        append_batch_message(
+                            state,
+                            f"{curto} pendente ID={certidao_id}: {mensagem}"
+                            if mensagem else f"{curto} pendente ID={certidao_id}.",
+                            level='warning',
+                            certidao_id=certidao_id,
+                        )
+                    elif not sucesso:
                         state['falhas'] += 1
                         append_batch_message(
                             state,

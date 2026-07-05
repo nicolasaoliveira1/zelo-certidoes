@@ -108,6 +108,44 @@ def test_one_failure():
     print('ok test_one_failure')
 
 
+def test_pendente_result_nao_e_sucesso_nem_falha():
+    # Um item que termina PENDENTE sinaliza incrementando pendentes_resultado.
+    # O loop deve contar como pendente, sem tocar success nem falhas.
+    state = make_state([1, 2, 3])
+
+    def on_call(cid, driver, eid, i):
+        if i == 1:  # segundo item termina pendente
+            state['pendentes_resultado'] = state.get('pendentes_resultado', 0) + 1
+
+    # item 1 sucesso, item 2 pendente (retorno True mas com incremento), item 3 sucesso
+    emit = make_emit([(True, False, None), (True, False, 'positiva'), (True, False, None)], on_call=on_call)
+    run(state, emit)
+    assert state['status'] == 'completed', state['status']
+    assert state['success'] == 2, state['success']
+    assert state['pendentes_resultado'] == 1, state['pendentes_resultado']
+    assert state['falhas'] == 0, state['falhas']
+    assert state['index'] == 3
+    print('ok test_pendente_result_nao_e_sucesso_nem_falha')
+
+
+def test_pendente_com_retorno_false_nao_conta_falha():
+    # FGTS impedimento retorna sucesso=False mas incrementa pendentes_resultado:
+    # deve contar como pendente, nao como falha.
+    state = make_state([1])
+
+    def on_call(cid, driver, eid, i):
+        state['pendentes_resultado'] = state.get('pendentes_resultado', 0) + 1
+
+    emit = make_emit([(False, False, 'impedimento')], on_call=on_call)
+    run(state, emit)
+    assert state['status'] == 'completed', state['status']
+    assert state['success'] == 0
+    assert state['falhas'] == 0
+    assert state['pendentes_resultado'] == 1
+    assert state['index'] == 1
+    print('ok test_pendente_com_retorno_false_nao_conta_falha')
+
+
 def test_grave_error_stops():
     state = make_state([1, 2, 3])
     emit = make_emit([(True, False, None), (False, True, 'boom')])
@@ -204,6 +242,8 @@ def main():
     tests = [
         test_all_success,
         test_one_failure,
+        test_pendente_result_nao_e_sucesso_nem_falha,
+        test_pendente_com_retorno_false_nao_conta_falha,
         test_grave_error_stops,
         test_stop_before_processing,
         test_pause_before_processing,
