@@ -41,6 +41,18 @@ roteiro. Se qualquer passo falhar, **não mescle** — avise e revertemos a etap
 | 12 | Rodar um **lote pequeno de Estadual RS** | Idem, com o setup de certificado |
 | 13 | Rodar um **lote pequeno Municipal** | Idem |
 
+## Relatórios (após rodar os lotes acima)
+
+Estas features são de banco/UI (sem Selenium), mas dependem dos lotes reais
+para popular. Verifique **depois** dos passos 11–13.
+
+| # | Ação | Resultado esperado |
+|---|------|--------------------|
+| 14 | Abrir **/relatorios** | Página carrega; indicadores e barras de distribuição por status/tipo batem com o dashboard |
+| 15 | Ver **"Últimos lotes emitidos"** | O lote que você acabou de rodar aparece na linha do tipo/escopo certos (FGTS/Estadual RS/Municipal Imbé/Municipal Tramandaí), com "há X" e data |
+| 16 | Clicar em **"Rendimento"** do lote | Modal abre com status, barra e contagens (emitidas / seguem pendentes / falhas) coerentes com o lote |
+| 17 | Ver **"Evolução por status"** | No 1º dia mostra o aviso de que acumula; a partir do 2º dia de uso a linha aparece (uma foto/dia) |
+
 ## Registro
 
 Anote a data e o que passou/falhou. Exemplo:
