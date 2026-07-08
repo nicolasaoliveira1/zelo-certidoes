@@ -402,7 +402,7 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False, 
     if _rs_batch_stop_requested():
         return False, False, 'Lote interrompido.'
 
-    certidao = Certidao.query.get(certidao_id)
+    certidao = db.session.get(Certidao, certidao_id)
     if not certidao:
         return False, False, 'Certidão não encontrada.'
 
@@ -801,7 +801,7 @@ def _emitir_municipal_certidao_lote(certidao_id, driver=None, execution_id=None)
     if _municipal_batch_stop_requested():
         return False, False, 'Lote interrompido.'
 
-    certidao = Certidao.query.get(certidao_id)
+    certidao = db.session.get(Certidao, certidao_id)
     if not certidao:
         return False, False, 'Certidão não encontrada.'
 
@@ -1090,7 +1090,7 @@ def _emitir_municipal_certidao_lote(certidao_id, driver=None, execution_id=None)
         except Exception:
             pass
         try:
-            certidao = Certidao.query.get(certidao_id)
+            certidao = db.session.get(Certidao, certidao_id)
             if certidao:
                 certidao.status_especial = StatusEspecial.PENDENTE
                 certidao.data_validade = None
@@ -1144,7 +1144,7 @@ def _emitir_fgts_certidao(certidao_id, driver=None, execution_id=None):
     if _fgts_stop_requested():
         return False, False, 'Lote interrompido.'
 
-    certidao = Certidao.query.get(certidao_id)
+    certidao = db.session.get(Certidao, certidao_id)
     if not certidao:
         return False, False, 'Certidão não encontrada.'
 

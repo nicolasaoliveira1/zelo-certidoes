@@ -177,7 +177,7 @@ def _batch_targets_vazios(scope='default'):
 
 
 def _calc_municipal_targets_by_scope(start_certidao_id, scope='default'):
-    certidao = Certidao.query.get(start_certidao_id)
+    certidao = db.session.get(Certidao, start_certidao_id)
     if not certidao or certidao.tipo != TipoCertidao.MUNICIPAL:
         return _batch_targets_vazios(scope=scope)
 
@@ -352,7 +352,7 @@ def _rotulo_execucao_municipal(certidao_id):
     """Rótulo do registro de execução do lote municipal, separado por cidade
     (Imbé / Tramandaí), já que cada lote municipal roda para uma cidade só."""
     try:
-        certidao = Certidao.query.get(certidao_id)
+        certidao = db.session.get(Certidao, certidao_id)
         cidade = (certidao.empresa.cidade or '').strip() if certidao else ''
     except Exception:
         cidade = ''
@@ -562,7 +562,7 @@ def fgts_emitir_unico():
     if not sucesso:
         return _json_error(mensagem or 'Falha ao emitir certidão FGTS.', 400)
 
-    certidao = Certidao.query.get(certidao_id)
+    certidao = db.session.get(Certidao, certidao_id)
     data_formatada = certidao.data_validade.strftime('%d/%m/%Y') if certidao and certidao.data_validade else None
 
     return jsonify({
@@ -1244,7 +1244,7 @@ _TIPOS_VENCER = [
 @bp.route('/configuracoes', methods=['GET', 'POST'])
 def configuracoes():
     try:
-        config = ConfiguracaoSistema.query.get(1)
+        config = db.session.get(ConfiguracaoSistema, 1)
     except Exception:
         config = None
 
@@ -2254,7 +2254,7 @@ def salvar_data_confirmada():
     nova_validade_str = dados.get('nova_validade')
 
     try:
-        certidao = Certidao.query.get(certidao_id)
+        certidao = db.session.get(Certidao, certidao_id)
         nova_data = datetime.strptime(nova_validade_str, '%Y-%m-%d').date()
 
         ok, erro = certidao_service.aplicar_validade(certidao, nova_data)

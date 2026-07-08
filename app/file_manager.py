@@ -18,8 +18,9 @@ def get_caminho_rede():
     config no banco (UI) > env CAMINHO_REDE > default. Best-effort: cai para o
     fallback se nao houver app context ou linha de configuracao."""
     try:
+        from app import db
         from app.models import ConfiguracaoSistema
-        config = ConfiguracaoSistema.query.get(1)
+        config = db.session.get(ConfiguracaoSistema, 1)
         if config and (config.caminho_rede or '').strip():
             return config.caminho_rede.strip()
     except Exception:

@@ -265,14 +265,14 @@ def _get_config_cached():
         from flask import g
         if not hasattr(g, '_config_sistema'):
             try:
-                g._config_sistema = ConfiguracaoSistema.query.get(1)
+                g._config_sistema = db.session.get(ConfiguracaoSistema, 1)
             except Exception:
                 g._config_sistema = None
         return g._config_sistema
     except RuntimeError:
         # Fora de contexto de request (ex: scripts, testes sem request)
         try:
-            return ConfiguracaoSistema.query.get(1)
+            return db.session.get(ConfiguracaoSistema, 1)
         except Exception:
             return None
 
