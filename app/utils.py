@@ -1,8 +1,18 @@
 """Pequenos utilitarios compartilhados entre modulos do app."""
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask import current_app
+
+
+def utcnow_naive():
+    """Datetime atual em UTC sem tzinfo (naive).
+
+    Substitui datetime.utcnow() (deprecado a partir do Python 3.12)
+    preservando a convencao de UTC-naive usada nas colunas e comparacoes
+    de tempo do projeto.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def to_bool(value, default=False):

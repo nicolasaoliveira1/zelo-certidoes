@@ -1,9 +1,10 @@
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from threading import Thread
 
 from sqlalchemy import or_
 
 from app.models import Certidao, StatusEspecial, TipoCertidao, get_a_vencer_dias
+from app.utils import utcnow_naive
 from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
 
@@ -82,7 +83,7 @@ def append_batch_message(batch_state, message, level='info', certidao_id=None, m
         'message': message,
         'level': level,
         'certidao_id': certidao_id,
-        'timestamp': datetime.utcnow().isoformat()
+        'timestamp': utcnow_naive().isoformat()
     })
     if len(messages) > max_items:
         del messages[:-max_items]
@@ -186,7 +187,7 @@ def run_batch_loop(
                     if state['index'] >= state['total']:
                         state['status'] = 'completed'
                         state['current_id'] = None
-                        state['finished_at'] = datetime.utcnow()
+                        state['finished_at'] = utcnow_naive()
                         append_batch_message(
                             state,
                             f'Lote {nome_lote} concluído com sucesso.',
@@ -298,7 +299,7 @@ def request_stop(batch_lock, batch_state):
         batch_state['stop_requested'] = True
         batch_state['stop_action'] = 'stop'
         batch_state['status'] = 'stopped'
-        batch_state['finished_at'] = datetime.utcnow()
+        batch_state['finished_at'] = utcnow_naive()
         return batch_state.get('driver')
 
 
@@ -332,7 +333,7 @@ def init_batch_run(batch_lock, batch_state, start_id, calc_targets_fn, worker_fn
             'vencidas': dados_lote['vencidas'],
             'a_vencer': dados_lote['a_vencer'],
             'pendentes': dados_lote.get('pendentes', 0),
-            'started_at': datetime.utcnow(),
+            'started_at': utcnow_naive(),
             'finished_at': None,
             'success': 0,
             'execution_id': CorrelationContext.new_execution_id(),

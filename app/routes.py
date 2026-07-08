@@ -79,7 +79,7 @@ from app.models import (
     TipoCertidao,
     get_a_vencer_dias,
 )
-from app.utils import get_config_value as _get_config_value, to_bool as _to_bool
+from app.utils import get_config_value as _get_config_value, to_bool as _to_bool, utcnow_naive
 from app.services import batch_engine, certidao_service, diagnostics, preflight
 from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
@@ -234,7 +234,7 @@ def _registrar_desfecho_lote(state):
         registro.pendentes_resultado = state.get('pendentes_resultado', 0)
         registro.falhas = state.get('falhas', 0)
         registro.finalizado_em = state.get('finished_at') or (
-            datetime.utcnow() if terminal else None)
+            utcnow_naive() if terminal else None)
         db.session.commit()
     except Exception as e:
         db.session.rollback()
@@ -372,7 +372,7 @@ def _registrar_execucao_lote(nome_lote, scope, total, execution_id):
             tipo=nome_lote,
             escopo=scope or 'default',
             total=total or 0,
-            iniciado_em=datetime.utcnow(),
+            iniciado_em=utcnow_naive(),
             execution_id=execution_id,
         ))
         db.session.commit()
@@ -1165,7 +1165,7 @@ def relatorios():
 
     # último lote iniciado por tipo × escopo (pendentes / geral). iniciado_em é
     # gravado em UTC; comparo com utcnow p/ o "há X" e converto p/ local só ao exibir.
-    agora_utc = datetime.utcnow()
+    agora_utc = utcnow_naive()
     tz_offset = agora - agora_utc
     lotes_resumo = []
     for nome_tipo in ('FGTS', 'Estadual RS', 'Municipal Imbé', 'Municipal Tramandaí'):

@@ -1,5 +1,6 @@
 import enum
 from app import db
+from app.utils import utcnow_naive
 from datetime import date, datetime, timezone
 
 
@@ -131,7 +132,7 @@ class EventoDiagnostico(db.Model):
     __tablename__ = 'evento_diagnostico'
 
     id = db.Column(db.Integer, primary_key=True)
-    criado_em = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    criado_em = db.Column(db.DateTime, nullable=False, default=utcnow_naive, index=True)
     evento = db.Column(db.String(80), nullable=False)
     nivel = db.Column(db.String(10), nullable=False, default='ERROR')
     error_type = db.Column(db.String(30), nullable=True)
@@ -145,7 +146,7 @@ class EventoDiagnostico(db.Model):
     def to_dict(self):
         return {
             'id': self.id,
-            # criado_em e gravado em UTC naive (default=datetime.utcnow); marca o
+            # criado_em e gravado em UTC naive (default=utcnow_naive); marca o
             # fuso como UTC ao serializar para que o front (new Date) converta
             # corretamente para o horario local do PC (Brasilia)
             'criado_em': (
@@ -183,7 +184,7 @@ class ExecucaoLote(db.Model):
     escopo = db.Column(db.String(20), nullable=False, default='default')
     total = db.Column(db.Integer, nullable=False, default=0)
     iniciado_em = db.Column(
-        db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+        db.DateTime, nullable=False, default=utcnow_naive, index=True)
     execution_id = db.Column(db.String(40), nullable=True)
 
     # desfecho do lote (gravado no fim de run_batch_loop via on_finish). Null
