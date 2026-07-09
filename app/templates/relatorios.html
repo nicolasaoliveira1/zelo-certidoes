@@ -124,7 +124,38 @@
         border-radius: 999px;
         margin-right: .5rem;
     }
+    /* seletor de período (segmented control) */
+    .chart-periodo {
+        display: inline-flex;
+        gap: .15rem;
+        padding: .15rem;
+        border-radius: 999px;
+        background: var(--zelo-mist, var(--bs-tertiary-bg));
+    }
+    .chart-periodo-btn {
+        border: 0;
+        background: transparent;
+        color: var(--bs-secondary-color);
+        font-size: .78rem;
+        font-weight: 600;
+        line-height: 1;
+        padding: .35rem .7rem;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: background .15s ease, color .15s ease;
+    }
+    .chart-periodo-btn:hover { color: var(--bs-body-color); }
+    .chart-periodo-btn.is-ativo {
+        background: var(--bs-body-bg);
+        color: var(--bs-body-color);
+        box-shadow: 0 1px 2px rgba(0,0,0,.08);
+    }
+    .chart-periodo-btn:disabled {
+        opacity: .4;
+        cursor: not-allowed;
+    }
     /* gráficos de linha (SVG vanilla) */
+    .chart-canvas { position: relative; }
     .chart-canvas svg { display: block; width: 100%; height: auto; }
     .chart-grid { stroke: var(--zelo-line, var(--bs-border-color)); stroke-width: 1; }
     .chart-ylabel, .chart-xlabel {
@@ -132,13 +163,56 @@
         font-size: 10px;
         fill: var(--bs-secondary-color);
     }
+    /* transições e estado de destaque das séries */
+    .chart-serie { transition: opacity .15s ease; }
+    .chart-canvas.has-destaque .chart-serie:not(.is-on) { opacity: .12; }
+    .chart-canvas.has-destaque .chart-serie.is-on { opacity: 1; }
+    .chart-overlay { cursor: crosshair; }
+    .chart-cursor {
+        stroke: var(--zelo-line, var(--bs-border-color));
+        stroke-width: 1;
+        stroke-dasharray: 3 3;
+        opacity: 0;
+        pointer-events: none;
+    }
+    .chart-cursor.is-visible { opacity: .7; }
+    .chart-focus circle { pointer-events: none; }
+    /* tooltip flutuante */
+    .chart-tooltip {
+        position: absolute;
+        pointer-events: none;
+        z-index: 5;
+        transform: translate(-50%, -100%);
+        background: var(--bs-body-bg);
+        border: 1px solid var(--zelo-line, var(--bs-border-color));
+        border-radius: .4rem;
+        box-shadow: 0 .25rem .75rem rgba(0,0,0,.15);
+        padding: .3rem .5rem;
+        font-size: .75rem;
+        line-height: 1.25;
+        white-space: nowrap;
+        opacity: 0;
+        transition: opacity .1s ease;
+    }
+    .chart-tooltip.is-visible { opacity: 1; }
+    .chart-tooltip .tt-data { color: var(--bs-secondary-color); font-family: var(--zelo-font-mono); }
+    .chart-tooltip .tt-linha { display: flex; align-items: center; }
     .chart-legend {
         display: flex;
         flex-wrap: wrap;
         gap: .4rem 1.25rem;
         margin-top: .75rem;
     }
-    .chart-legend-item { display: flex; align-items: center; font-size: .8rem; }
+    .chart-legend-item {
+        display: flex;
+        align-items: center;
+        font-size: .8rem;
+        cursor: pointer;
+        user-select: none;
+        transition: opacity .15s ease;
+    }
+    .chart-legend.has-destaque .chart-legend-item:not(.is-on) { opacity: .4; }
+    .chart-legend-item:hover { opacity: .75; }
 </style>
 
 <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
@@ -271,7 +345,17 @@
 {# ── Evolução por status (linha, foto diária) ───────────────────────── #}
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body">
-        <p class="rel-section-title mb-3">Evolução por status</p>
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+            <p class="rel-section-title mb-0">Evolução por status</p>
+            {% if serie_status|length >= 2 %}
+            <div class="chart-periodo" id="chartStatusPeriodo" role="group" aria-label="Período do gráfico">
+                <button type="button" class="chart-periodo-btn" data-dias="7">7 dias</button>
+                <button type="button" class="chart-periodo-btn" data-dias="30">30 dias</button>
+                <button type="button" class="chart-periodo-btn" data-dias="90">90 dias</button>
+                <button type="button" class="chart-periodo-btn is-ativo" data-dias="0">Tudo</button>
+            </div>
+            {% endif %}
+        </div>
         {% if serie_status|length >= 2 %}
         <div class="chart-canvas" id="chartStatus"></div>
         <div class="chart-legend" id="chartStatusLegend"></div>
@@ -467,6 +551,12 @@
 (function () {
     // Gráfico de linha em SVG puro (sem dependência). Cores lidas dos tokens
     // de status via var(--zelo-*), então acompanham o tema claro/escuro sozinhas.
+    const esc = s => String(s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+    const SVGNS = 'http://www.w3.org/2000/svg';
+    // séries destacadas pela legenda; compartilhado entre gráfico e legenda para
+    // que o tooltip por coluna liste só o que está filtrado
+    const destacados = new Set();
+
     function desenharLinha(el, labels, series) {
         const W = 720, H = 240;
         const padL = 32, padR = 22, padT = 12, padB = 26;
@@ -476,7 +566,6 @@
         series.forEach(s => s.valores.forEach(v => { if (v > yMax) yMax = v; }));
         const xAt = i => padL + (n <= 1 ? plotW / 2 : plotW * i / (n - 1));
         const yAt = v => padT + plotH * (1 - v / yMax);
-        const esc = s => String(s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
 
         let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img">';
         const steps = 4;
@@ -495,7 +584,9 @@
                 svg += '<text x="' + xAt(i) + '" y="' + (H - 8) + '" class="chart-xlabel" text-anchor="' + anchor + '">' + esc(lb) + '</text>';
             }
         });
-        series.forEach(s => {
+        // camada dos traços/pontos por série (data-serie liga ao índice da legenda)
+        series.forEach((s, si) => {
+            svg += '<g class="chart-serie is-on" data-serie="' + si + '">';
             if (n >= 2) {
                 const pts = s.valores.map((v, i) => xAt(i) + ',' + yAt(v)).join(' ');
                 svg += '<polyline points="' + pts + '" fill="none" style="stroke:var(--zelo-' + s.cor + ')" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
@@ -503,31 +594,154 @@
             s.valores.forEach((v, i) => {
                 svg += '<circle cx="' + xAt(i) + '" cy="' + yAt(v) + '" r="' + (n <= 1 ? 3.5 : 2.4) + '" style="fill:var(--zelo-' + s.cor + ')"/>';
             });
+            svg += '</g>';
         });
+        // guia vertical + grupo de foco (preenchido no hover) + overlay que
+        // captura o mouse na área toda: um único tooltip por coluna, então
+        // pontos sobrepostos aparecem todos juntos em vez de um atrás do outro
+        svg += '<line class="chart-cursor" y1="' + padT + '" y2="' + (padT + plotH) + '"/>';
+        svg += '<g class="chart-focus"></g>';
+        svg += '<rect class="chart-overlay" x="' + padL + '" y="' + padT + '" width="' + plotW + '" height="' + plotH + '" fill="transparent"/>';
         svg += '</svg>';
         el.innerHTML = svg;
+
+        const tip = document.createElement('div');
+        tip.className = 'chart-tooltip';
+        el.appendChild(tip);
+        const svgEl = el.querySelector('svg');
+        const cursor = svgEl.querySelector('.chart-cursor');
+        const focus = svgEl.querySelector('.chart-focus');
+        const overlay = svgEl.querySelector('.chart-overlay');
+
+        function seriesVisiveis() {
+            // respeita o filtro da legenda; sem filtro, mostra todas
+            return series.map((s, si) => ({ s, si }))
+                .filter(o => destacados.size === 0 || destacados.has(o.si));
+        }
+        function indiceDoMouse(ev) {
+            const rect = svgEl.getBoundingClientRect();
+            const vbX = (ev.clientX - rect.left) / rect.width * W;   // px -> viewBox
+            if (n <= 1) return 0;
+            const i = Math.round((vbX - padL) / (plotW / (n - 1)));
+            return Math.max(0, Math.min(n - 1, i));
+        }
+        function mostrar(ev) {
+            const vis = seriesVisiveis();
+            if (!vis.length) { ocultar(); return; }
+            const i = indiceDoMouse(ev);
+            const cx = xAt(i);
+
+            // marcadores de foco (anel com contorno do fundo p/ separar sobrepostos)
+            focus.textContent = '';
+            let topo = padT + plotH;
+            vis.forEach(({ s }) => {
+                const cy = yAt(s.valores[i]);
+                if (cy < topo) topo = cy;
+                const c = document.createElementNS(SVGNS, 'circle');
+                c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', 4);
+                c.setAttribute('style', 'fill:var(--zelo-' + s.cor + ')');
+                c.setAttribute('stroke', 'var(--bs-body-bg)');
+                c.setAttribute('stroke-width', '1.5');
+                focus.appendChild(c);
+            });
+            cursor.setAttribute('x1', cx); cursor.setAttribute('x2', cx);
+            cursor.classList.add('is-visible');
+
+            // tooltip: uma linha por série visível
+            tip.innerHTML = '<div class="tt-data">' + esc(labels[i]) + '</div>'
+                + vis.map(({ s }) =>
+                    '<div class="tt-linha"><span class="rel-dot" style="background:var(--zelo-' + s.cor + ')"></span>'
+                    + esc(s.nome) + ': <strong>&nbsp;' + esc(s.valores[i]) + '</strong></div>'
+                ).join('');
+
+            const rect = svgEl.getBoundingClientRect();
+            const escalaX = rect.width / W, escalaY = rect.height / H;
+            const px = Math.max(4, Math.min(rect.width - 4, cx * escalaX));
+            tip.style.left = px + 'px';
+            tip.style.top = Math.max(0, topo * escalaY - 8) + 'px';
+            tip.classList.add('is-visible');
+        }
+        function ocultar() {
+            tip.classList.remove('is-visible');
+            cursor.classList.remove('is-visible');
+            focus.textContent = '';
+        }
+        overlay.addEventListener('mousemove', mostrar);
+        overlay.addEventListener('mouseleave', ocultar);
+        // permite reusar no clique da legenda para atualizar o tooltip aberto
+        el._redesenharFoco = () => ocultar();
     }
 
-    function desenharLegenda(el, series) {
+    function desenharLegenda(el, series, canvas) {
         if (!el) return;
-        el.innerHTML = series.map(s =>
-            '<span class="chart-legend-item"><span class="rel-dot" style="background:var(--zelo-' + s.cor + ')"></span>' + s.nome + '</span>'
+        el.innerHTML = series.map((s, si) =>
+            '<span class="chart-legend-item is-on" data-serie="' + si + '"><span class="rel-dot" style="background:var(--zelo-' + s.cor + ')"></span>' + esc(s.nome) + '</span>'
         ).join('');
+
+        function aplicar() {
+            const ativo = destacados.size > 0;
+            el.classList.toggle('has-destaque', ativo);
+            canvas.classList.toggle('has-destaque', ativo);
+            el.querySelectorAll('.chart-legend-item').forEach(item => {
+                const on = !ativo || destacados.has(+item.dataset.serie);
+                item.classList.toggle('is-on', on);
+            });
+            canvas.querySelectorAll('.chart-serie').forEach(g => {
+                const on = !ativo || destacados.has(+g.dataset.serie);
+                g.classList.toggle('is-on', on);
+            });
+            // fecha o tooltip aberto; ele lista só as séries filtradas no próximo hover
+            if (typeof canvas._redesenharFoco === 'function') canvas._redesenharFoco();
+        }
+        el.querySelectorAll('.chart-legend-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const si = +item.dataset.serie;
+                // clicar acumula/remove; destaque múltiplo simultâneo
+                if (destacados.has(si)) destacados.delete(si);
+                else destacados.add(si);
+                aplicar();
+            });
+        });
+        // reflete o filtro atual (preserva o destaque ao trocar de período)
+        aplicar();
     }
 
     const serieStatus = {{ serie_status | tojson }};
     const elStatus = document.getElementById('chartStatus');
+    const elLegenda = document.getElementById('chartStatusLegend');
+    const elPeriodo = document.getElementById('chartStatusPeriodo');
     if (elStatus && serieStatus.length >= 2) {
-        const labels = serieStatus.map(d => d.label);
-        const series = [
-            { nome: 'Válidas', cor: 'ok', valores: serieStatus.map(d => d.validas) },
-            { nome: 'A vencer', cor: 'warn', valores: serieStatus.map(d => d.a_vencer) },
-            { nome: 'Vencidas', cor: 'danger', valores: serieStatus.map(d => d.vencidas) },
-            { nome: 'Pendentes', cor: 'pend', valores: serieStatus.map(d => d.pendentes) },
-            { nome: 'Sem data', cor: 'muted', valores: serieStatus.map(d => d.sem_data) },
-        ];
-        desenharLinha(elStatus, labels, series);
-        desenharLegenda(document.getElementById('chartStatusLegend'), series);
+        function montar(dias) {
+            // dias = 0 => tudo; senão, os últimos N dias registrados
+            const dados = dias > 0 ? serieStatus.slice(-dias) : serieStatus;
+            const labels = dados.map(d => d.label);
+            const series = [
+                { nome: 'Válidas', cor: 'ok', valores: dados.map(d => d.validas) },
+                { nome: 'A vencer', cor: 'warn', valores: dados.map(d => d.a_vencer) },
+                { nome: 'Vencidas', cor: 'danger', valores: dados.map(d => d.vencidas) },
+                { nome: 'Pendentes', cor: 'pend', valores: dados.map(d => d.pendentes) },
+                { nome: 'Sem data', cor: 'muted', valores: dados.map(d => d.sem_data) },
+            ];
+            desenharLinha(elStatus, labels, series);
+            desenharLegenda(elLegenda, series, elStatus);
+        }
+
+        if (elPeriodo) {
+            const botoes = [...elPeriodo.querySelectorAll('.chart-periodo-btn')];
+            // desabilita janelas que já cobrem todo o histórico (evita botões redundantes)
+            botoes.forEach(b => {
+                const d = +b.dataset.dias;
+                if (d > 0 && d >= serieStatus.length) b.disabled = true;
+            });
+            elPeriodo.addEventListener('click', ev => {
+                const btn = ev.target.closest('.chart-periodo-btn');
+                if (!btn || btn.disabled) return;
+                botoes.forEach(b => b.classList.toggle('is-ativo', b === btn));
+                montar(+btn.dataset.dias);
+            });
+        }
+
+        montar(0);
     }
 })();
 </script>
