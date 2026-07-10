@@ -213,6 +213,12 @@
     }
     .chart-legend.has-destaque .chart-legend-item:not(.is-on) { opacity: .4; }
     .chart-legend-item:hover { opacity: .75; }
+    .chart-legend-item:focus-visible,
+    .chart-periodo-btn:focus-visible {
+        outline: 2px solid var(--zelo-graphite, var(--bs-primary));
+        outline-offset: 2px;
+        border-radius: .25rem;
+    }
 </style>
 
 <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
@@ -349,10 +355,10 @@
             <p class="rel-section-title mb-0">Evolução por status</p>
             {% if serie_status|length >= 2 %}
             <div class="chart-periodo" id="chartStatusPeriodo" role="group" aria-label="Período do gráfico">
-                <button type="button" class="chart-periodo-btn" data-dias="7">7 dias</button>
-                <button type="button" class="chart-periodo-btn" data-dias="30">30 dias</button>
-                <button type="button" class="chart-periodo-btn" data-dias="90">90 dias</button>
-                <button type="button" class="chart-periodo-btn is-ativo" data-dias="0">Tudo</button>
+                <button type="button" class="chart-periodo-btn" data-dias="7" aria-pressed="false">7 dias</button>
+                <button type="button" class="chart-periodo-btn" data-dias="30" aria-pressed="false">30 dias</button>
+                <button type="button" class="chart-periodo-btn" data-dias="90" aria-pressed="false">90 dias</button>
+                <button type="button" class="chart-periodo-btn is-ativo" data-dias="0" aria-pressed="true">Tudo</button>
             </div>
             {% endif %}
         </div>
@@ -675,7 +681,7 @@
     function desenharLegenda(el, series, canvas) {
         if (!el) return;
         el.innerHTML = series.map((s, si) =>
-            '<span class="chart-legend-item is-on" data-serie="' + si + '"><span class="rel-dot" style="background:var(--zelo-' + s.cor + ')"></span>' + esc(s.nome) + '</span>'
+            '<span class="chart-legend-item is-on" data-serie="' + si + '" role="button" tabindex="0" aria-pressed="false"><span class="rel-dot" style="background:var(--zelo-' + s.cor + ')"></span>' + esc(s.nome) + '</span>'
         ).join('');
 
         function aplicar() {
@@ -683,8 +689,9 @@
             el.classList.toggle('has-destaque', ativo);
             canvas.classList.toggle('has-destaque', ativo);
             el.querySelectorAll('.chart-legend-item').forEach(item => {
-                const on = !ativo || destacados.has(+item.dataset.serie);
-                item.classList.toggle('is-on', on);
+                const sel = destacados.has(+item.dataset.serie);
+                item.classList.toggle('is-on', !ativo || sel);
+                item.setAttribute('aria-pressed', sel ? 'true' : 'false');
             });
             canvas.querySelectorAll('.chart-serie').forEach(g => {
                 const on = !ativo || destacados.has(+g.dataset.serie);
@@ -694,12 +701,16 @@
             if (typeof canvas._redesenharFoco === 'function') canvas._redesenharFoco();
         }
         el.querySelectorAll('.chart-legend-item').forEach(item => {
-            item.addEventListener('click', () => {
+            // clicar/Enter/Espaço acumula/remove; destaque múltiplo simultâneo
+            const alternar = () => {
                 const si = +item.dataset.serie;
-                // clicar acumula/remove; destaque múltiplo simultâneo
                 if (destacados.has(si)) destacados.delete(si);
                 else destacados.add(si);
                 aplicar();
+            };
+            item.addEventListener('click', alternar);
+            item.addEventListener('keydown', ev => {
+                if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); alternar(); }
             });
         });
         // reflete o filtro atual (preserva o destaque ao trocar de período)
@@ -736,7 +747,11 @@
             elPeriodo.addEventListener('click', ev => {
                 const btn = ev.target.closest('.chart-periodo-btn');
                 if (!btn || btn.disabled) return;
-                botoes.forEach(b => b.classList.toggle('is-ativo', b === btn));
+                botoes.forEach(b => {
+                    const on = b === btn;
+                    b.classList.toggle('is-ativo', on);
+                    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+                });
                 montar(+btn.dataset.dias);
             });
         }
