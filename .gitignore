@@ -53,6 +53,9 @@ docs/specs/
 # Plano de identidade (uso local, não versionado)
 docs/IDENTIDADE_ZELO.md
 
+# Análise de arquitetura (uso local, não versionada)
+docs/ANALISE_ARQUITETURA.md
+
 # Bancos locais
 *.sqlite3
 *.db
