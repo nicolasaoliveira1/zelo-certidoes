@@ -6,7 +6,7 @@ edge "usuário desativado" (is_active) e AUDIT-01 (EventoAuditoria em UTC).
 import pytest
 
 from app import db
-from app.models import Usuario, PapelUsuario
+from app.models import Usuario, PapelUsuario, EventoAuditoria
 
 
 @pytest.fixture()
@@ -64,3 +64,26 @@ def test_username_unico(ctx):
     with pytest.raises(IntegrityError):
         db.session.commit()
     db.session.rollback()
+
+
+# --- EventoAuditoria (AUDIT-01, AD-006) ---
+
+def test_evento_auditoria_serializa_criado_em_em_utc(ctx):
+    ev = EventoAuditoria(acao='login', resultado='ok', usuario_nome='ana', papel='admin')
+    db.session.add(ev)
+    db.session.commit()
+    d = ev.to_dict()
+    # AD-006: timestamp técnico marcado como UTC ao serializar
+    assert d['criado_em'].endswith('+00:00')
+    assert d['acao'] == 'login'
+    assert d['resultado'] == 'ok'
+    assert d['usuario_nome'] == 'ana'
+    assert d['papel'] == 'admin'
+
+
+def test_evento_auditoria_resultado_default_ok(ctx):
+    ev = EventoAuditoria(acao='empresa.criar')
+    db.session.add(ev)
+    db.session.commit()
+    salvo = EventoAuditoria.query.filter_by(acao='empresa.criar').first()
+    assert salvo.resultado == 'ok'

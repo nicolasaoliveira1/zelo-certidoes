@@ -263,6 +263,52 @@ class Usuario(db.Model, UserMixin):
         return f'<Usuario {self.username} ({self.papel})>'
 
 
+class EventoAuditoria(db.Model):
+    """Trilha de ações sensíveis (quem/quando/ação/alvo/IP/resultado).
+
+    Espelha EventoDiagnostico; criado_em em UTC naive, serializado como UTC no
+    to_dict (AD-006 — exceção explícita a AD-004: auditoria é registro técnico)."""
+    __tablename__ = 'evento_auditoria'
+
+    id = db.Column(db.Integer, primary_key=True)
+    criado_em = db.Column(db.DateTime, nullable=False, default=utcnow_naive, index=True)
+    usuario_id = db.Column(db.Integer, nullable=True, index=True)
+    usuario_nome = db.Column(db.String(80), nullable=True)  # snapshot: sobrevive à remoção
+    papel = db.Column(db.String(20), nullable=True)
+    acao = db.Column(db.String(80), nullable=False, index=True)
+    alvo_tipo = db.Column(db.String(40), nullable=True)
+    alvo_id = db.Column(db.Integer, nullable=True)
+    ip = db.Column(db.String(45), nullable=True)  # cabe IPv6
+    resultado = db.Column(db.String(10), nullable=False, default='ok')  # 'ok' | 'erro'
+    detalhe = db.Column(db.String(500), nullable=True)
+    request_id = db.Column(db.String(40), nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            # criado_em em UTC naive; marca tzinfo=UTC ao serializar para o front
+            # (new Date) converter para o horário local do PC (mesmo padrão do
+            # EventoDiagnostico)
+            'criado_em': (
+                self.criado_em.replace(tzinfo=timezone.utc).isoformat()
+                if self.criado_em else None
+            ),
+            'usuario_id': self.usuario_id,
+            'usuario_nome': self.usuario_nome,
+            'papel': self.papel,
+            'acao': self.acao,
+            'alvo_tipo': self.alvo_tipo,
+            'alvo_id': self.alvo_id,
+            'ip': self.ip,
+            'resultado': self.resultado,
+            'detalhe': self.detalhe,
+            'request_id': self.request_id,
+        }
+
+    def __repr__(self):
+        return f'<EventoAuditoria {self.acao} {self.resultado}>'
+
+
 class ConfiguracaoSistema(db.Model):
     __tablename__ = 'configuracao_sistema'
 
