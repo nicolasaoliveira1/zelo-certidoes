@@ -2,6 +2,8 @@ import enum
 from app import db
 from app.utils import utcnow_naive
 from datetime import date, datetime, timezone
+from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
 
 
 class TipoCertidao(enum.Enum):
@@ -223,6 +225,42 @@ class SnapshotCertidao(db.Model):
 
     def __repr__(self):
         return f'<SnapshotCertidao {self.data} {self.tipo}/{self.status}={self.quantidade}>'
+
+
+class PapelUsuario:
+    """Papéis fixos (String, não db.Enum — portabilidade SQLite↔MySQL; ver AD-005).
+
+    Rank: leitura < operador < admin (admin = superusuário)."""
+    ADMIN = 'admin'
+    OPERADOR = 'operador'
+    LEITURA = 'leitura'
+    TODOS = (ADMIN, OPERADOR, LEITURA)
+
+
+class Usuario(db.Model, UserMixin):
+    """Credenciais e papel do usuário; integra Flask-Login (AD-007)."""
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    senha_hash = db.Column(db.String(255), nullable=False)
+    papel = db.Column(db.String(20), nullable=False, default=PapelUsuario.LEITURA)
+    ativo = db.Column(db.Boolean, nullable=False, default=True)
+    criado_em = db.Column(db.DateTime, nullable=False, default=utcnow_naive)
+
+    def set_senha(self, senha):
+        # werkzeug scrypt por padrão; persiste só o hash (AUTH-02)
+        self.senha_hash = generate_password_hash(senha)
+
+    def checar_senha(self, senha):
+        return check_password_hash(self.senha_hash, senha)
+
+    @property
+    def is_active(self):
+        # sobrescreve UserMixin: sessão de usuário desativado é barrada (edge case)
+        return self.ativo
+
+    def __repr__(self):
+        return f'<Usuario {self.username} ({self.papel})>'
 
 
 class ConfiguracaoSistema(db.Model):
