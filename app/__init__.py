@@ -1,6 +1,7 @@
 from flask import Flask, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_wtf.csrf import CSRFProtect
 from config import Config
 import os
 import logging
@@ -11,6 +12,7 @@ from app.services.health import run_health_checks
 
 db = SQLAlchemy()
 migrate = Migrate()
+csrf = CSRFProtect()
 
 def create_app(config_class=Config):
     app = Flask(__name__, instance_relative_config=True)
@@ -40,6 +42,7 @@ def create_app(config_class=Config):
     
     db.init_app(app)
     migrate.init_app(app, db)
+    csrf.init_app(app)
 
     with app.app_context():
         if app.config.get('AUTO_DB_UPGRADE', True):
@@ -50,6 +53,11 @@ def create_app(config_class=Config):
     # models importado para registrar as tabelas no SQLAlchemy/Migrate (efeito colateral)
     from app import routes, models  # noqa: F401
     app.register_blueprint(routes.bp)
+
+    # autenticacao/autorizacao: LoginManager, enforcement global e rotas de sessao
+    from app.auth import bp_auth, init_auth
+    init_auth(app)
+    app.register_blueprint(bp_auth)
 
     # persistencia do historico de diagnostico (thread escritora + prune inicial)
     if app.config.get('DIAGNOSTICO_PERSISTIR', True):
