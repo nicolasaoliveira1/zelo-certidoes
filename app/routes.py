@@ -84,6 +84,7 @@ from app.services import batch_engine, certidao_service, diagnostics, preflight
 from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
 from app.services.health import run_health_checks
+from app.auth import requer_papel
 
 bp = Blueprint('main', __name__)
 
@@ -466,11 +467,13 @@ def _register_batch_routes(prefix, endpoint_base, cfg):
     def status_view():
         return jsonify(batch_engine.status_payload_locked(lock, state))
 
+    # info/status sao leitura (dashboard poll); iniciar/pausar/parar/retomar mutam -> operador
+    op = requer_papel('operador')
     bp.add_url_rule(f'{prefix}/lote/info/<int:certidao_id>', f'{endpoint_base}_info', info)
-    bp.add_url_rule(f'{prefix}/lote/iniciar', f'{endpoint_base}_iniciar', iniciar, methods=['POST'])
-    bp.add_url_rule(f'{prefix}/lote/pausar', f'{endpoint_base}_pausar', pausar, methods=['POST'])
-    bp.add_url_rule(f'{prefix}/lote/parar', f'{endpoint_base}_parar', parar, methods=['POST'])
-    bp.add_url_rule(f'{prefix}/lote/retomar', f'{endpoint_base}_retomar', retomar, methods=['POST'])
+    bp.add_url_rule(f'{prefix}/lote/iniciar', f'{endpoint_base}_iniciar', op(iniciar), methods=['POST'])
+    bp.add_url_rule(f'{prefix}/lote/pausar', f'{endpoint_base}_pausar', op(pausar), methods=['POST'])
+    bp.add_url_rule(f'{prefix}/lote/parar', f'{endpoint_base}_parar', op(parar), methods=['POST'])
+    bp.add_url_rule(f'{prefix}/lote/retomar', f'{endpoint_base}_retomar', op(retomar), methods=['POST'])
     bp.add_url_rule(f'{prefix}/lote/status', f'{endpoint_base}_status', status_view)
 
 
@@ -538,6 +541,7 @@ def diagnostico_eventos():
 
 
 @bp.route('/fgts/emitir_unico', methods=['POST'])
+@requer_papel('operador')
 def fgts_emitir_unico():
     dados = request.get_json() or {}
     certidao_id = dados.get('certidao_id')
@@ -905,6 +909,7 @@ def empresa_detalhe(empresa_id):
 
 
 @bp.route('/empresa/<int:empresa_id>/editar', methods=['POST'])
+@requer_papel('operador')
 def empresa_editar(empresa_id):
     empresa = Empresa.query.get_or_404(empresa_id)
     nome = (request.form.get('nome') or '').strip()
@@ -945,6 +950,7 @@ def empresa_editar(empresa_id):
 
 
 @bp.route('/empresa/<int:empresa_id>/remover', methods=['GET', 'POST'])
+@requer_papel('admin')
 def empresa_remover(empresa_id):
     empresa = Empresa.query.get_or_404(empresa_id)
     next_url = request.values.get('next') or url_for('main.empresas')
@@ -989,6 +995,7 @@ _NOMES_EXIBICAO_CIDADE = {
 
 
 @bp.route('/empresa/nova', endpoint='nova_empresa')
+@requer_papel('operador')
 def pagina_nova_empresa():
     municipios_db = Municipio.query.order_by(Municipio.nome).all()
     vistos = set()
@@ -1242,6 +1249,7 @@ _TIPOS_VENCER = [
 
 
 @bp.route('/configuracoes', methods=['GET', 'POST'])
+@requer_papel('admin')
 def configuracoes():
     try:
         config = db.session.get(ConfiguracaoSistema, 1)
@@ -1313,6 +1321,7 @@ def configuracoes():
 
 
 @bp.route('/empresa/adicionar', methods=['POST'])
+@requer_papel('operador')
 def adicionar_empresa():
     # dados formulário
     nome = (request.form.get('nome') or '').strip()
@@ -1418,6 +1427,7 @@ def adicionar_empresa():
 
 
 @bp.route('/certidao/atualizar/<int:certidao_id>', methods=['POST'])
+@requer_papel('operador')
 def atualizar_validade(certidao_id):
     certidao = Certidao.query.get_or_404(certidao_id)
     nova_data_str = request.form.get('nova_validade')
@@ -1436,6 +1446,7 @@ def atualizar_validade(certidao_id):
 
 
 @bp.route('/certidao/marcar_pendente/<int:certidao_id>', methods=['POST'])
+@requer_papel('operador')
 def marcar_pendente(certidao_id):
     certidao = Certidao.query.get_or_404(certidao_id)
     ok, erro = certidao_service.marcar_pendente(certidao)
@@ -2226,6 +2237,7 @@ def _montar_resposta_baixar(certidao, cfg, resultado):
 
 
 @bp.route('/certidao/baixar/<int:certidao_id>')
+@requer_papel('operador')
 def baixar_certidao(certidao_id):
     file_manager.criar_chave_interrupcao()
     certidao = Certidao.query.get_or_404(certidao_id)
@@ -2248,6 +2260,7 @@ def baixar_certidao(certidao_id):
 
 
 @bp.route('/certidao/salvar_data_confirmada', methods=['POST'])
+@requer_papel('operador')
 def salvar_data_confirmada():
     dados = request.get_json()
     certidao_id = dados.get('certidao_id')
@@ -2272,6 +2285,7 @@ def salvar_data_confirmada():
 
 
 @bp.route('/certidao/monitorar_download_federal/<int:certidao_id>')
+@requer_papel('operador')
 def monitorar_download_federal(certidao_id):
     certidao = Certidao.query.get_or_404(certidao_id)
 
@@ -2372,6 +2386,7 @@ def monitorar_download_federal(certidao_id):
 
 
 @bp.route('/certidao/monitorar_download_federal/stop', methods=['POST'])
+@requer_papel('operador')
 def interromper_monitoramento_federal():
     file_manager.criar_chave_interrupcao()
     return jsonify({'status': 'ok'})
@@ -2437,6 +2452,7 @@ def gerar_token_visualizar(certidao_id):
 
 
 @bp.route('/certidao/marcar_pendente_json/<int:certidao_id>', methods=['POST'])
+@requer_papel('operador')
 def marcar_pendente_json(certidao_id):
     try:
         certidao = Certidao.query.get_or_404(certidao_id)
@@ -2450,6 +2466,7 @@ def marcar_pendente_json(certidao_id):
 
 
 @bp.route('/certidao/atualizar_json/<int:certidao_id>', methods=['POST'])
+@requer_papel('operador')
 def atualizar_validade_json(certidao_id):
     data = request.get_json()
     nova_data_str = data.get('nova_validade')
