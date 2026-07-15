@@ -4,6 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% if pendencias_total and pendencias_total > 0 %}({{ pendencias_total }}) {% endif %}{% block titulo %}Certidões{% endblock %} · Zelo</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -100,6 +101,32 @@
             }
         })();
     </script>
+
+    <script>
+        // injeta o token CSRF em todo fetch de mutacao (nao edita cada call site)
+        (function () {
+            const meta = document.querySelector('meta[name="csrf-token"]');
+            const token = meta ? meta.getAttribute('content') : null;
+            if (!token || !window.fetch) {
+                return;
+            }
+            const origFetch = window.fetch.bind(window);
+            window.fetch = function (input, init) {
+                init = init || {};
+                const method = (init.method || (input && input.method) || 'GET').toUpperCase();
+                const url = typeof input === 'string' ? input : (input && input.url) || '';
+                const sameOrigin = !/^https?:\/\//i.test(url) || url.indexOf(window.location.origin) === 0;
+                if (sameOrigin && method !== 'GET' && method !== 'HEAD') {
+                    const headers = new Headers(init.headers || (input && input.headers) || {});
+                    if (!headers.has('X-CSRFToken')) {
+                        headers.set('X-CSRFToken', token);
+                    }
+                    init.headers = headers;
+                }
+                return origFetch(input, init);
+            };
+        })();
+    </script>
 </head>
 
 <body>
@@ -144,6 +171,23 @@
                         </svg>
                     </button>
                 </li>
+                {% if current_user.is_authenticated %}
+                <span class="navbar-text order-5 small ms-1 me-1 d-flex align-items-center gap-1"
+                    title="Usuário autenticado">
+                    <i class="bi bi-person-circle" aria-hidden="true"></i>
+                    <span class="d-none d-sm-inline">{{ current_user.username }}</span>
+                    <span class="badge rounded-pill text-bg-secondary text-uppercase">{{ current_user.papel }}</span>
+                </span>
+                <li class="nav-item order-6 list-unstyled mb-0">
+                    <form method="post" action="{{ url_for('auth.logout') }}" class="mb-0">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-link nav-link py-2 px-0 px-lg-2" type="submit" title="Sair"
+                            aria-label="Sair">
+                            <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+                        </button>
+                    </form>
+                </li>
+                {% endif %}
             </div>
         </div>
     </nav>
@@ -176,10 +220,12 @@
                 <i class="bi bi-buildings"></i>
                 <span>Empresas</span>
             </a>
+            {% if current_user.papel in ['operador', 'admin'] %}
             <a class="sidebar-link {% if current_endpoint == 'main.nova_empresa' %}active{% endif %}" href="{{ url_for('main.nova_empresa') }}" title="Nova Empresa">
                 <i class="bi bi-building-add"></i>
                 <span>Nova Empresa</span>
             </a>
+            {% endif %}
             <a class="sidebar-link {% if current_endpoint == 'main.relatorios' %}active{% endif %}" href="{{ url_for('main.relatorios') }}" title="Relatórios">
                 <i class="bi bi-bar-chart-line-fill"></i>
                 <span>Relatórios</span>
@@ -187,10 +233,12 @@
             {# Diagnostico fica acessivel apenas por URL direta (/diagnostico), fora do menu #}
         </nav>
         <div class="sidebar-nav-footer">
+            {% if current_user.papel == 'admin' %}
             <a class="sidebar-link {% if current_endpoint == 'main.configuracoes' %}active{% endif %}" href="{{ url_for('main.configuracoes') }}" title="Configurações">
                 <i class="bi bi-gear-fill"></i>
                 <span>Configurações</span>
             </a>
+            {% endif %}
         </div>
     </aside>
 
