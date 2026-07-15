@@ -81,3 +81,60 @@ def test_consultar_filtra_por_usuario(ctx, app):
     doAna = auditoria.consultar(usuario_id=ana.id)
     assert len(doAna) == 1
     assert doAna[0].acao == 'certidao.marcar_pendente'
+
+
+# --- e2e: instrumentação nos pontos sensíveis (AUDIT-01) ---
+
+def test_marcar_pendente_gera_evento(login_as, ids, app):
+    """Independent Test da spec: operador marca pendente -> evento com usuário/ação/alvo."""
+    c = login_as('operador')
+    resp = c.post(f'/certidao/marcar_pendente_json/{ids["fgts"]}')
+    assert resp.status_code == 200
+    with app.app_context():
+        evs = EventoAuditoria.query.filter_by(acao='certidao.marcar_pendente').all()
+        assert len(evs) == 1  # exatamente um evento
+        ev = evs[0]
+        assert ev.usuario_nome == 'op_test'
+        assert ev.papel == PapelUsuario.OPERADOR
+        assert ev.alvo_tipo == 'certidao' and ev.alvo_id == ids['fgts']
+        assert ev.resultado == 'ok'
+
+
+def test_login_ok_gera_evento(login_as, app):
+    login_as('operador')
+    with app.app_context():
+        ev = EventoAuditoria.query.filter_by(acao='login', resultado='ok').first()
+        assert ev is not None
+        assert ev.usuario_nome == 'op_test'
+
+
+def test_login_invalido_gera_evento_erro(client_anon, ids, app):
+    client_anon.post('/login', data={'username': 'op_test', 'senha': 'errada'})
+    with app.app_context():
+        ev = EventoAuditoria.query.filter_by(acao='login', resultado='erro').first()
+        assert ev is not None  # tentativa falha também é auditada (AUDIT-01.2)
+
+
+def test_acao_que_falha_registra_erro(login_as, ids, app, monkeypatch):
+    from app.services import certidao_service
+    monkeypatch.setattr(certidao_service, 'marcar_pendente', lambda cert: (False, 'boom'))
+    c = login_as('operador')
+    resp = c.post(f'/certidao/marcar_pendente_json/{ids["fgts"]}')
+    assert resp.status_code == 500
+    with app.app_context():
+        ev = EventoAuditoria.query.filter_by(
+            acao='certidao.marcar_pendente', resultado='erro').first()
+        assert ev is not None
+        assert ev.alvo_id == ids['fgts']
+
+
+def test_empresa_criar_gera_evento(login_as, ids, app):
+    c = login_as('operador')
+    c.post('/empresa/adicionar', data={
+        'nome': 'Beta LTDA', 'cnpj': '33.333.333/3333-33',
+        'cidade': 'Tramandai', 'estado': 'RS',
+    })
+    with app.app_context():
+        ev = EventoAuditoria.query.filter_by(acao='empresa.criar', resultado='ok').first()
+        assert ev is not None
+        assert ev.usuario_nome == 'op_test' and ev.alvo_tipo == 'empresa'

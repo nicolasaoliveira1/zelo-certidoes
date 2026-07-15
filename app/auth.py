@@ -28,7 +28,7 @@ from flask_wtf.csrf import CSRFError
 
 from app import db
 from app.models import Usuario, PapelUsuario
-from app.services import usuario_service
+from app.services import auditoria, usuario_service
 from app.services.correlation import CorrelationContext
 
 bp_auth = Blueprint('auth', __name__)
@@ -148,15 +148,18 @@ def login():
         usuario = usuario_service.autenticar(username, senha)
         if usuario is None:
             # mensagem genérica — não revela se o usuário existe (AUTH-01.3)
+            auditoria.registrar('login', resultado='erro', detalhe=f'usuario={username[:60]}')
             flash('Usuário ou senha inválidos.', 'danger')
             return render_template('login.html'), 401
         login_user(usuario)
+        auditoria.registrar('login', resultado='ok')
         return redirect(_destino_seguro(request.args.get('next') or request.form.get('next')))
     return render_template('login.html')
 
 
 @bp_auth.route('/logout', methods=['POST'])
 def logout():
+    auditoria.registrar('logout')  # antes de limpar current_user
     logout_user()
     flash('Sessão encerrada.', 'info')
     return redirect(url_for('auth.login'))

@@ -80,7 +80,7 @@ from app.models import (
     get_a_vencer_dias,
 )
 from app.utils import get_config_value as _get_config_value, to_bool as _to_bool, utcnow_naive
-from app.services import batch_engine, certidao_service, diagnostics, preflight
+from app.services import auditoria, batch_engine, certidao_service, diagnostics, preflight
 from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
 from app.services.health import run_health_checks
@@ -435,6 +435,7 @@ def _register_batch_routes(prefix, endpoint_base, cfg):
         with lock:
             batch_engine.append_batch_message(
                 state, f"Lote {nome} iniciado. Total={dados_lote['total']}.", level='info')
+        auditoria.registrar('lote.iniciar', alvo_tipo='certidao', alvo_id=certidao_id, detalhe=nome)
         return jsonify({'status': 'ok'})
 
     def pausar():
@@ -942,9 +943,12 @@ def empresa_editar(empresa_id):
     try:
         db.session.commit()
         flash('Empresa atualizada com sucesso.', 'success')
+        auditoria.registrar('empresa.editar', alvo_tipo='empresa', alvo_id=empresa_id)
     except Exception as exc:
         db.session.rollback()
         flash(f'Erro ao atualizar empresa: {exc}', 'danger')
+        auditoria.registrar('empresa.editar', alvo_tipo='empresa', alvo_id=empresa_id,
+                            resultado='erro', detalhe=str(exc))
 
     return redirect(next_url)
 
@@ -976,9 +980,12 @@ def empresa_remover(empresa_id):
         db.session.delete(empresa)
         db.session.commit()
         flash(f'Empresa "{empresa.nome}" removida com sucesso.', 'success')
+        auditoria.registrar('empresa.remover', alvo_tipo='empresa', alvo_id=empresa_id)
     except Exception as exc:
         db.session.rollback()
         flash(f'Erro ao remover empresa: {exc}', 'danger')
+        auditoria.registrar('empresa.remover', alvo_tipo='empresa', alvo_id=empresa_id,
+                            resultado='erro', detalhe=str(exc))
 
     return redirect(next_url)
 
@@ -1299,9 +1306,11 @@ def configuracoes():
         try:
             db.session.commit()
             flash('Configuracoes atualizadas com sucesso.', 'success')
+            auditoria.registrar('config.editar')
         except Exception as exc:
             db.session.rollback()
             flash(f'Erro ao salvar configuracoes: {exc}', 'danger')
+            auditoria.registrar('config.editar', resultado='erro', detalhe=str(exc))
 
         return redirect(url_for('main.configuracoes'))
 
@@ -1419,9 +1428,11 @@ def adicionar_empresa():
     try:
         db.session.commit()
         flash(f'Empresa "{nome}" cadastrada com sucesso!', 'success')
+        auditoria.registrar('empresa.criar', alvo_tipo='empresa', alvo_id=empresa_nova.id)
     except Exception as e:
         db.session.rollback()
         flash(f'Erro ao cadastrar empresa: {e}', 'danger')
+        auditoria.registrar('empresa.criar', resultado='erro', detalhe=str(e))
 
     return _redirect_apos_cadastro()
 
@@ -1438,8 +1449,11 @@ def atualizar_validade(certidao_id):
         if ok:
             flash(
                 f"Validade da certidão {certidao.tipo.value} da empresa {certidao.empresa.nome} atualizada com sucesso!", 'success')
+            auditoria.registrar('certidao.aplicar_validade', alvo_tipo='certidao', alvo_id=certidao_id)
         else:
             flash(f"Erro ao atualizar validade: {erro}", 'danger')
+            auditoria.registrar('certidao.aplicar_validade', alvo_tipo='certidao',
+                                alvo_id=certidao_id, resultado='erro', detalhe=erro)
     else:
         flash("Nenhuma data foi fornecida.", 'warning')
     return redirect(url_for('main.dashboard'))
@@ -1453,8 +1467,11 @@ def marcar_pendente(certidao_id):
     if ok:
         flash(
             f'Certidão {certidao.tipo.value} da empresa {certidao.empresa.nome} marcada como Pendente.', 'info')
+        auditoria.registrar('certidao.marcar_pendente', alvo_tipo='certidao', alvo_id=certidao_id)
     else:
         flash(f'Erro ao marcar como pendente: {erro}', 'danger')
+        auditoria.registrar('certidao.marcar_pendente', alvo_tipo='certidao',
+                            alvo_id=certidao_id, resultado='erro', detalhe=erro)
 
     return redirect(url_for('main.dashboard'))
 
@@ -2458,10 +2475,15 @@ def marcar_pendente_json(certidao_id):
         certidao = Certidao.query.get_or_404(certidao_id)
         ok, erro = certidao_service.marcar_pendente(certidao)
         if not ok:
+            auditoria.registrar('certidao.marcar_pendente', alvo_tipo='certidao',
+                                alvo_id=certidao_id, resultado='erro', detalhe=erro)
             return _json_error(erro, 500)
+        auditoria.registrar('certidao.marcar_pendente', alvo_tipo='certidao', alvo_id=certidao_id)
         return jsonify({'status': 'success'})
     except Exception as e:
         db.session.rollback()
+        auditoria.registrar('certidao.marcar_pendente', alvo_tipo='certidao',
+                            alvo_id=certidao_id, resultado='erro', detalhe=str(e))
         return _json_error(code=500, exc=e)
 
 
@@ -2478,8 +2500,11 @@ def atualizar_validade_json(certidao_id):
             nova_data = datetime.strptime(nova_data_str, '%Y-%m-%d').date()
             ok, erro = certidao_service.aplicar_validade(certidao, nova_data)
             if not ok:
+                auditoria.registrar('certidao.aplicar_validade', alvo_tipo='certidao',
+                                    alvo_id=certidao_id, resultado='erro', detalhe=erro)
                 return _json_error(erro, 500)
 
+            auditoria.registrar('certidao.aplicar_validade', alvo_tipo='certidao', alvo_id=certidao_id)
             return jsonify({
                 'status': 'success',
                 'message': f'Validade de {certidao.empresa.nome} atualizada com sucesso!',
