@@ -62,7 +62,7 @@
                     {% for ev in eventos %}
                     <tr>
                         <td class="font-monospace text-nowrap">
-                            <time class="js-utc" data-utc="{{ ev.to_dict()['criado_em'] }}">{{ ev.criado_em.strftime('%d/%m/%Y %H:%M') }}</time>
+                            <time class="js-utc" data-utc="{{ ev.criado_em_iso }}">{{ ev.criado_em.strftime('%d/%m/%Y %H:%M') }}</time>
                         </td>
                         <td>
                             {{ ev.usuario_nome or '—' }}

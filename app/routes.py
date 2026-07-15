@@ -523,7 +523,7 @@ _register_batch_routes('/municipal', 'municipal_lote', {
 @bp.route('/health')
 def health():
     # liveness publico e minimo: nao vaza detalhes de infra (AUTH-07.2)
-    detalhado = (request.args.get('detalhado') or '').strip().lower() in {'1', 'true', 'yes', 'sim'}
+    detalhado = _to_bool(request.args.get('detalhado'))
     if not detalhado:
         return jsonify({'status': 'ok'}), 200
     # health detalhado exige admin

@@ -67,6 +67,30 @@ def test_logout_encerra_sessao(login_as):
     assert c.get('/').status_code == 302
 
 
+# --- open redirect no next do login ---
+
+def test_login_next_backslash_bloqueia_redirect_externo(client_anon):
+    resp = client_anon.post('/login', data={
+        'username': 'admin_test', 'senha': 'senha-admin-1', 'next': '/\\evil.com'})
+    assert resp.status_code == 302
+    assert 'evil.com' not in resp.headers.get('Location', '')
+
+
+def test_login_next_local_preservado(client_anon):
+    resp = client_anon.post('/login', data={
+        'username': 'admin_test', 'senha': 'senha-admin-1', 'next': '/empresas'})
+    assert resp.headers.get('Location', '').endswith('/empresas')
+
+
+# --- form POST de página (sem login) redireciona; endpoint de API responde 401 ---
+
+def test_form_post_sem_login_redireciona_para_login(client_anon):
+    resp = client_anon.post('/empresa/adicionar', data={
+        'nome': 'X', 'cnpj': '00.000.000/0000-00', 'cidade': 'Tramandai', 'estado': 'RS'})
+    assert resp.status_code == 302
+    assert '/login' in resp.headers.get('Location', '')
+
+
 # --- edge: usuário desativado barrado no próximo request ---
 
 def test_usuario_desativado_barrado_no_proximo_request(login_as, app):

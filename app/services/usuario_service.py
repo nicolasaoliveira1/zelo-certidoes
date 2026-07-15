@@ -4,9 +4,14 @@ Reutilizado pela CLI de bootstrap (`flask criar-admin`) e pelas rotas admin de
 gestão de usuários. Centraliza commit/rollback e as regras de segurança
 (autenticação genérica, guarda de último admin)."""
 from sqlalchemy.exc import IntegrityError
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from app import db
 from app.models import Usuario, PapelUsuario
+
+# Hash descartável usado para equalizar o tempo de `autenticar` quando o usuário
+# não existe/está inativo — evita enumeração de usuários por canal lateral de timing.
+_HASH_DUMMY = generate_password_hash('timing-equalizer')
 
 
 class UltimoAdminError(Exception):
@@ -42,7 +47,11 @@ def autenticar(username, senha):
     Não distingue "usuário inexistente" de "senha errada" (mensagem genérica —
     AC AUTH-01.3)."""
     usuario = Usuario.query.filter_by(username=username).first()
-    if usuario and usuario.ativo and usuario.checar_senha(senha):
+    if usuario is None or not usuario.ativo:
+        # paga o mesmo custo de hash do caminho válido (anti-enumeração por timing)
+        check_password_hash(_HASH_DUMMY, senha)
+        return None
+    if usuario.checar_senha(senha):
         return usuario
     return None
 

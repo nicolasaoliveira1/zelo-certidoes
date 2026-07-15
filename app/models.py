@@ -283,16 +283,17 @@ class EventoAuditoria(db.Model):
     detalhe = db.Column(db.String(500), nullable=True)
     request_id = db.Column(db.String(40), nullable=True)
 
+    @property
+    def criado_em_iso(self):
+        # criado_em em UTC naive; marca tzinfo=UTC para o front (new Date)
+        # converter para o horário local do PC (mesmo padrão do EventoDiagnostico)
+        return (self.criado_em.replace(tzinfo=timezone.utc).isoformat()
+                if self.criado_em else None)
+
     def to_dict(self):
         return {
             'id': self.id,
-            # criado_em em UTC naive; marca tzinfo=UTC ao serializar para o front
-            # (new Date) converter para o horário local do PC (mesmo padrão do
-            # EventoDiagnostico)
-            'criado_em': (
-                self.criado_em.replace(tzinfo=timezone.utc).isoformat()
-                if self.criado_em else None
-            ),
+            'criado_em': self.criado_em_iso,
             'usuario_id': self.usuario_id,
             'usuario_nome': self.usuario_nome,
             'papel': self.papel,

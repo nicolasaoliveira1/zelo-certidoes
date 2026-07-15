@@ -7,7 +7,7 @@ Camadas (ver AD-005):
 - Rotas de sessão: `GET/POST /login`, `POST /logout`.
 - Error handlers: CSRFError (400 claro), 403.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import (
@@ -81,16 +81,30 @@ def _exigir_login():
     return _resposta_nao_autenticado()
 
 
+# POSTs de API que não carregam corpo JSON (fetch sem body) — precisam de resposta JSON
+_ROTAS_JSON_POST = {
+    '/fgts/emitir_unico',
+    '/certidao/salvar_data_confirmada',
+    '/certidao/monitorar_download_federal/stop',
+}
+
+
 def _prefere_json():
-    """API/mutação → JSON; página GET → HTML (redirect)."""
-    if request.method not in ('GET', 'HEAD'):
-        return True
+    """Decide resposta JSON (API/fetch) vs HTML (redirect/flash em página).
+
+    Sem isso, todo POST cairia em JSON e um `<form>` de página com sessão/CSRF
+    expirados mostraria um blob JSON em vez de redirecionar ao login/flash."""
     if request.path.startswith('/api/'):
         return True
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
         return True
-    accept = request.accept_mimetypes
-    return accept.accept_json and not accept.accept_html
+    if request.method in ('GET', 'HEAD'):
+        accept = request.accept_mimetypes
+        return accept.accept_json and not accept.accept_html
+    # POST/PUT/…: JSON só para endpoints de API (fetch); senão é form de página.
+    # '_json' é substring pois esses endpoints têm o id depois (.../_json/<id>).
+    p = request.path
+    return '_json' in p or '/lote/' in p or p in _ROTAS_JSON_POST
 
 
 def _envelope_erro(mensagem, code, **extra):
@@ -167,8 +181,11 @@ def logout():
 
 
 def _destino_seguro(prox):
-    """Só redireciona para caminho local (evita open-redirect)."""
-    if prox and prox.startswith('/') and not prox.startswith('//'):
+    """Só redireciona para caminho local (evita open-redirect).
+
+    Rejeita `//host` e também `/\\host`: o navegador normaliza `\\`→`/`, então
+    `/\\evil.com` viraria o protocolo-relativo `//evil.com`."""
+    if prox and prox.startswith('/') and not prox.startswith('//') and '\\' not in prox:
         return prox
     return url_for('main.dashboard')
 
@@ -176,13 +193,18 @@ def _destino_seguro(prox):
 # --- Painel de auditoria (admin) — AUDIT-02 ---
 
 def _parse_data(texto, *, fim_do_dia=False):
+    """Converte a data local do filtro para UTC naive (criado_em é UTC — AD-006),
+    senão a janela ficaria deslocada ~3h e eventos cairiam no dia errado."""
     if not texto:
         return None
     try:
         d = datetime.strptime(texto, '%Y-%m-%d')
     except ValueError:
         return None
-    return d.replace(hour=23, minute=59, second=59) if fim_do_dia else d
+    if fim_do_dia:
+        d = d.replace(hour=23, minute=59, second=59)
+    offset = datetime.now().astimezone().utcoffset() or timedelta(0)
+    return d - offset
 
 
 @bp_auth.route('/admin/auditoria')
