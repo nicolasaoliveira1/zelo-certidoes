@@ -1406,10 +1406,28 @@ def configuracoes():
         caminho_rede_raw = (request.form.get('caminho_rede') or '').strip()
         config.caminho_rede = caminho_rede_raw or None
 
+        # Agendador de emissao proativa (spec 02): hora local 0-23 + liga/desliga.
+        # So processa quando o formulario traz a secao do agendador (evita mexer
+        # no estado num POST parcial que nao inclui esses campos).
+        if 'agendador_hora' in request.form:
+            hora_raw = (request.form.get('agendador_hora') or '').strip()
+            try:
+                hora = int(hora_raw)
+            except (TypeError, ValueError):
+                flash('Informe uma hora inteira entre 0 e 23 para o agendador.', 'warning')
+                return redirect(url_for('main.configuracoes'))
+            if not 0 <= hora <= 23:
+                flash('O horario do agendador deve ficar entre 0 e 23.', 'warning')
+                return redirect(url_for('main.configuracoes'))
+            config.agendador_hora = hora
+            config.agendador_ativo = _to_bool(request.form.get('agendador_ativo'))
+
         try:
             db.session.commit()
             flash('Configuracoes atualizadas com sucesso.', 'success')
             auditoria.registrar('config.editar')
+            # reprograma o scheduler sem reiniciar (no-op se nao estiver rodando)
+            agendador.reprogramar(_current_app_object())
         except Exception as exc:
             db.session.rollback()
             flash(f'Erro ao salvar configuracoes: {exc}', 'danger')
@@ -1429,6 +1447,8 @@ def configuracoes():
         tipos_vencer=_TIPOS_VENCER,
         caminho_rede=(config.caminho_rede if config else None) or '',
         caminho_rede_efetivo=file_manager.get_caminho_rede(),
+        agendador_ativo=(config.agendador_ativo if config else True),
+        agendador_hora=(config.agendador_hora if config else 3),
     )
 
 

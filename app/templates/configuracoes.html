@@ -97,6 +97,41 @@
                         </div>
                     </div>
 
+                    <div class="col-12"><hr class="my-1"></div>
+
+                    <div class="col-12">
+                        <h6 class="fw-bold mb-1">Agendador de renovação</h6>
+                        <div class="form-check form-switch mb-2">
+                            <input
+                                class="form-check-input"
+                                type="checkbox"
+                                role="switch"
+                                id="agendador-ativo"
+                                name="agendador_ativo"
+                                {% if agendador_ativo %}checked{% endif %}
+                            >
+                            <label class="form-check-label" for="agendador-ativo">
+                                Emitir automaticamente as certidões a vencer, de madrugada
+                            </label>
+                        </div>
+                        <label class="form-label fw-semibold" for="agendador-hora">Horário diário</label>
+                        <input
+                            type="number"
+                            class="form-control"
+                            id="agendador-hora"
+                            name="agendador_hora"
+                            min="0"
+                            max="23"
+                            step="1"
+                            value="{{ agendador_hora }}"
+                            style="max-width: 8rem;"
+                        >
+                        <div class="form-text">
+                            Hora local (0–23) em que o lote de renovação roda. Alterar aqui
+                            reprograma sem reiniciar o sistema.
+                        </div>
+                    </div>
+
                     <div class="col-12">
                         <button type="submit" class="btn btn-primary">Salvar</button>
                     </div>
