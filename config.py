@@ -22,6 +22,16 @@ def _env_int(name, default=0):
     except ValueError:
         return default
 
+
+def _env_float(name, default=0.0):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        return float(str(value).strip().replace(',', '.'))
+    except ValueError:
+        return default
+
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY')
     if not SECRET_KEY:
@@ -74,7 +84,10 @@ class Config:
     CAPTCHA_2_DEFAULT_TIMEOUT = _env_int('CAPTCHA_2_DEFAULT_TIMEOUT', 180)
     CAPTCHA_2_POLLING_INTERVAL = _env_int('CAPTCHA_2_POLLING_INTERVAL', 10)
     CAPTCHA_2_SERVER = os.environ.get('CAPTCHA_2_SERVER') or '2captcha.com'
-        
+    # Saldo minimo (USD) abaixo do qual o agendador avisa no painel de
+    # diagnostico que os creditos do 2captcha estao acabando (spec 02, SCHED-08).
+    CAPTCHA_2_SALDO_MINIMO = _env_float('CAPTCHA_2_SALDO_MINIMO', 2.0)
+
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # recarrega templates Jinja a cada request

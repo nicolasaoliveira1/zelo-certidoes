@@ -28,6 +28,24 @@ def _parse_int(value, default_value):
         return default_value
 
 
+def consultar_saldo(config):
+    """Consulta o saldo (USD) da conta 2captcha. Best-effort (spec 02, SCHED-08):
+
+    retorna float em sucesso; None se não há chave configurada ou se a consulta
+    falha (rede/API). Nunca levanta — o agendador usa o resultado só para avisar
+    sobre créditos baixos, então uma falha aqui não pode derrubar o job."""
+    api_key = (config.get('CAPTCHA_2_API_KEY') or '').strip()
+    if not api_key:
+        return None
+    server = (config.get('CAPTCHA_2_SERVER') or '2captcha.com').strip() or '2captcha.com'
+    try:
+        solver = TwoCaptcha(apiKey=api_key, server=server)
+        return float(solver.balance())
+    except Exception as exc:
+        log_event('captcha_saldo_consulta_falhou', level='WARNING', error=str(exc))
+        return None
+
+
 def _extract_code(result):
     if isinstance(result, str):
         return result.strip()
