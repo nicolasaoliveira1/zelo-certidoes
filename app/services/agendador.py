@@ -15,7 +15,9 @@ from threading import Lock
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from app.services import fila_emissao, snapshot_service
+from app.captcha_solver import consultar_saldo
+from app.services import auditoria, fila_emissao, snapshot_service
+from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
 
 _JOB_RENOVACAO = 'agendador_renovacao_diaria'
@@ -132,13 +134,70 @@ def job_snapshot_diario(app):
         snapshot_service.garantir_snapshot_diario()
 
 
-def job_renovacao_diaria(app):
-    """Job diário de renovação proativa (SCHED-04).
+def _avisar_saldo_baixo(app):
+    """Aviso no painel de diagnóstico quando o saldo de 2captcha está baixo — o
+    preço de manter o agendador ligado por padrão (SCHED-08). Best-effort."""
+    saldo = consultar_saldo(app.config)
+    minimo = app.config.get('CAPTCHA_2_SALDO_MINIMO', 0)
+    if saldo is not None and saldo < minimo:
+        log_event('agendador_saldo_2captcha_baixo', level='WARNING',
+                  saldo=saldo, minimo=minimo)
 
-    A estrutura schedulável vive aqui; o comportamento de enfileirar os alvos a
-    vencer e rodar os lotes por tipo é implementado em T8."""
+
+def _wrap_emit(execution_id):
+    """Fábrica que envolve o `emit_fn` real do lote para transicionar a
+    `TarefaEmissao` de cada item: rodando → ok / falha(retry) (SCHED-05)."""
+    def factory(real_emit):
+        def wrapped(certidao_id, driver, eid):
+            tarefa = fila_emissao.tarefa_ativa(certidao_id)
+            if tarefa is not None:
+                fila_emissao.marcar_rodando(tarefa, execution_id=execution_id)
+            sucesso, grave, mensagem = real_emit(certidao_id, driver, eid)
+            if tarefa is not None:
+                if sucesso:
+                    fila_emissao.marcar_ok(tarefa)
+                else:
+                    fila_emissao.resolver_falha(tarefa, mensagem)
+            return sucesso, grave, mensagem
+        return wrapped
+    return factory
+
+
+def job_renovacao_diaria(app):
+    """Job diário de renovação proativa (SCHED-04/05/06/08).
+
+    Enfileira as certidões a vencer de cada tipo automatizável (janela por tipo)
+    e roda os lotes de forma síncrona pelo `batch_engine`, transicionando cada
+    `TarefaEmissao`. Atribui a auditoria ao ator sintético `agendador`."""
     with app.app_context():
         log_event('agendador_renovacao_inicio')
         if not _fluxos:
             log_event('agendador_nada_a_fazer')
             return
+
+        execution_id = CorrelationContext.new_execution_id()
+        _avisar_saldo_baixo(app)
+
+        # 1) monta a fila a vencer por tipo (idempotente)
+        alvos = {tv: fluxo['calc_ids'](app) for tv, fluxo in _fluxos.items()}
+        fila_emissao.enfileirar_a_vencer(alvos, execution_id=execution_id)
+
+        # 2) roda cada tipo, sincrono e sequencial (respeitando os locks por tipo)
+        total = 0
+        for tv, fluxo in _fluxos.items():
+            ids = [t.certidao_id for t in fila_emissao.tarefas_elegiveis(fluxo['tipo'])]
+            if not ids:
+                continue
+            total += len(ids)
+            auditoria.registrar('agendador.lote', alvo_tipo='tipo', detalhe=tv,
+                                ator='agendador')
+            try:
+                fluxo['rodar_lote'](app, ids, wrap_emit=_wrap_emit(execution_id),
+                                    execution_id=execution_id)
+            except Exception as exc:
+                log_event('agendador_lote_falhou', level='ERROR', tipo=tv,
+                          error=str(exc), execution_id=execution_id)
+
+        if total == 0:
+            log_event('agendador_nada_a_fazer')
+        log_event('agendador_renovacao_fim', total=total, execution_id=execution_id)
