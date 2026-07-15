@@ -227,6 +227,32 @@ class SnapshotCertidao(db.Model):
         return f'<SnapshotCertidao {self.data} {self.tipo}/{self.status}={self.quantidade}>'
 
 
+class TarefaEmissao(db.Model):
+    """Fila durável de emissão proativa (spec 02, AD-010). Uma linha por certidão
+    a emitir. É a camada de durabilidade: sobrevive a restart (reconciliação de
+    órfãs no boot) e habilita retry por item; o batch_state em memória permanece
+    para o progresso do lote em curso. Carimbos em hora local naive (AD-004),
+    como Certidao.atualizado_em."""
+    __tablename__ = 'tarefa_emissao'
+
+    id = db.Column(db.Integer, primary_key=True)
+    tipo = db.Column(db.String(20), nullable=False, index=True)  # TipoCertidao.value
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
+    certidao_id = db.Column(
+        db.Integer, db.ForeignKey('certidao.id'), nullable=False, index=True)
+    # pendente | rodando | ok | falha | retry
+    status = db.Column(db.String(12), nullable=False, default='pendente', index=True)
+    tentativas = db.Column(db.Integer, nullable=False, default=0)
+    agendada_em = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    iniciada_em = db.Column(db.DateTime, nullable=True)
+    concluida_em = db.Column(db.DateTime, nullable=True)
+    erro = db.Column(db.String(500), nullable=True)
+    execution_id = db.Column(db.String(40), nullable=True, index=True)
+
+    def __repr__(self):
+        return f'<TarefaEmissao {self.tipo} cert={self.certidao_id} {self.status}>'
+
+
 class PapelUsuario:
     """Papéis fixos (String, não db.Enum — portabilidade SQLite↔MySQL; ver AD-005).
 
@@ -322,6 +348,10 @@ class ConfiguracaoSistema(db.Model):
     a_vencer_dias_trabalhista = db.Column(db.Integer, nullable=True)
     # caminho base da rede onde os PDFs sao organizados; em branco usa env/default
     caminho_rede = db.Column(db.String(500), nullable=True)
+    # Agendador de emissao proativa (spec 02). Ligado por padrao (decisao do
+    # operador); horario em hora local naive (0-23, AD-004).
+    agendador_ativo = db.Column(db.Boolean, nullable=False, default=True)
+    agendador_hora = db.Column(db.Integer, nullable=False, default=3)
 
     def __repr__(self):
         return f'<ConfiguracaoSistema {self.id}>'
