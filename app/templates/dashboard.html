@@ -2006,7 +2006,10 @@
                                     valueTotalEl: fgtsBatchTotal
                                 }, data, scopeAtual);
 
-                                if (totalLote <= 1 && scopeAtual !== 'pendentes') {
+                                // Certidao fora do escopo do lote (ex.: "Não definida", sem
+                                // validade) nunca abre modal de lote: emite so a clicada.
+                                const foraDoLote = data.start_incluida === false;
+                                if (foraDoLote || (totalLote <= 1 && scopeAtual !== 'pendentes')) {
                                     if (!fgtsBatchSingleUrl) {
                                         showToast('URL de emissão indisponível.', 'error');
                                         return;
@@ -2078,7 +2081,8 @@
                                     valueTotalEl: rsBatchTotal
                                 }, data, scopeAtual);
 
-                                if (totalLote <= 1 && scopeAtual !== 'pendentes') {
+                                const foraDoLote = data.start_incluida === false;
+                                if (foraDoLote || (totalLote <= 1 && scopeAtual !== 'pendentes')) {
                                     if (!rsBatchSingleUrl) {
                                         showToast('URL de emissão indisponível.', 'error');
                                         return;
@@ -2191,7 +2195,8 @@
                                     valueTotalEl: municipalBatchTotal
                                 }, data, scopeAtual);
 
-                                if (totalLote <= 1 && scopeAtual !== 'pendentes') {
+                                const foraDoLote = data.start_incluida === false;
+                                if (foraDoLote || (totalLote <= 1 && scopeAtual !== 'pendentes')) {
                                     if (!municipalBatchSingleUrl) {
                                         showToast('URL de emissão indisponível.', 'error');
                                         return;

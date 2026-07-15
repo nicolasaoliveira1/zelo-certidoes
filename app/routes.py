@@ -172,6 +172,7 @@ def _batch_targets_vazios(scope='default'):
         'ids': [],
         'total': 0,
         'scope': scope_norm,
+        'start_incluida': False,
         'vencidas': 0,
         'a_vencer': 0,
         'pendentes': 0,
