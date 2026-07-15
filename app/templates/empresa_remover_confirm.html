@@ -23,6 +23,7 @@
         <div class="d-flex flex-wrap gap-2">
             <a class="btn btn-ghost" href="{{ next_url }}">Cancelar</a>
             <form method="POST" action="{{ url_for('main.empresa_remover', empresa_id=empresa.id) }}" class="mb-0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="confirm" value="1">
                 <input type="hidden" name="next" value="{{ next_url }}">
                 <button type="submit" class="btn btn-danger">Confirmar remoção</button>
