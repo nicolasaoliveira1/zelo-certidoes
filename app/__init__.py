@@ -59,6 +59,10 @@ def create_app(config_class=Config):
     init_auth(app)
     app.register_blueprint(bp_auth)
 
+    # comandos CLI de bootstrap de usuarios (flask criar-admin / criar-usuario)
+    from app.cli import register_cli
+    register_cli(app)
+
     # persistencia do historico de diagnostico (thread escritora + prune inicial)
     if app.config.get('DIAGNOSTICO_PERSISTIR', True):
         iniciar_persistencia(app, app.config.get('DIAGNOSTICO_RETENCAO_DIAS', 30))
