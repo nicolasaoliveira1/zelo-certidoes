@@ -83,6 +83,10 @@ from app.utils import get_config_value as _get_config_value, to_bool as _to_bool
 from app.services import auditoria, batch_engine, certidao_service, diagnostics, preflight
 from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
+from app.services.snapshot_service import (
+    classificar_status_certidao as _classificar_status_certidao,
+    garantir_snapshot_diario as _garantir_snapshot_diario,
+)
 from app.services.health import run_health_checks
 from app.auth import requer_papel
 from flask_login import current_user
@@ -1058,49 +1062,6 @@ _LOTE_STATUS_LABEL = {
     'error': 'Erro',
     'paused': 'Pausado',
 }
-
-
-def _classificar_status_certidao(certidao, hoje):
-    """Classifica uma certidão em uma das 5 categorias de status usadas nos
-    relatórios/snapshot: pendentes | sem_data | vencidas | a_vencer | validas."""
-    if certidao.status_especial == StatusEspecial.PENDENTE:
-        return 'pendentes'
-    if not certidao.data_validade:
-        return 'sem_data'
-    if (certidao.data_validade - hoje).days < 0:
-        return 'vencidas'
-    if certidao.status == 'amarelo':
-        return 'a_vencer'
-    return 'validas'
-
-
-_ULTIMO_SNAPSHOT_DIA = None
-
-
-def _garantir_snapshot_diario():
-    """Grava (uma vez por dia, lazy) a foto das contagens por tipo × status.
-    Sem scheduler: dispara na 1ª visita do dia às páginas que a chamam.
-    Best-effort — uma falha nunca deve quebrar a página."""
-    global _ULTIMO_SNAPSHOT_DIA
-    hoje = date.today()
-    if _ULTIMO_SNAPSHOT_DIA == hoje:
-        return
-    try:
-        if db.session.query(SnapshotCertidao.id).filter_by(data=hoje).first():
-            _ULTIMO_SNAPSHOT_DIA = hoje
-            return
-        contagens = {}
-        for certidao in Certidao.query.all():
-            chave = (certidao.tipo.value, _classificar_status_certidao(certidao, hoje))
-            contagens[chave] = contagens.get(chave, 0) + 1
-        for (tipo_valor, status_key), qtd in contagens.items():
-            db.session.add(SnapshotCertidao(
-                data=hoje, tipo=tipo_valor, status=status_key, quantidade=qtd))
-        db.session.commit()
-        _ULTIMO_SNAPSHOT_DIA = hoje
-    except Exception as e:
-        db.session.rollback()
-        log_event('snapshot_certidao_falhou', level='WARNING', error=str(e))
 
 
 def _humanizar_desde(dt, agora):
