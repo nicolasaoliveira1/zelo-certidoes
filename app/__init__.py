@@ -63,6 +63,13 @@ def create_app(config_class=Config):
     from app.cli import register_cli
     register_cli(app)
 
+    # agendador de emissao proativa (spec 02): inicia o BackgroundScheduler e
+    # reconcilia tarefas orfas. Idempotente e guardado contra o reloader; no-op
+    # quando AGENDADOR_ENABLED=false (testes). Os fluxos ja foram registrados no
+    # import de routes acima.
+    from app.services import agendador
+    agendador.init(app)
+
     # persistencia do historico de diagnostico (thread escritora + prune inicial)
     if app.config.get('DIAGNOSTICO_PERSISTIR', True):
         iniciar_persistencia(app, app.config.get('DIAGNOSTICO_RETENCAO_DIAS', 30))

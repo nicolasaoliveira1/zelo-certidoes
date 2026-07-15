@@ -10,10 +10,12 @@ from app.services import agendador, snapshot_service
 
 
 @pytest.fixture()
-def sched_limpo(monkeypatch):
+def sched_limpo(app, monkeypatch):
     # simula o processo que serve (filho do reloader): sem isto, o guard anti
     # duplo-start do reloader barra o init quando app.debug=True (.env FLASK_DEBUG=1)
     monkeypatch.setenv('WERKZEUG_RUN_MAIN', 'true')
+    # religa o agendador (conftest desliga por padrao nos testes)
+    monkeypatch.setitem(app.config, 'AGENDADOR_ENABLED', True)
     agendador._fluxos.clear()
     yield
     agendador.shutdown()
