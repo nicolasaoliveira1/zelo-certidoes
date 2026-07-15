@@ -85,6 +85,7 @@ from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
 from app.services.health import run_health_checks
 from app.auth import requer_papel
+from flask_login import current_user
 
 bp = Blueprint('main', __name__)
 
@@ -521,6 +522,13 @@ _register_batch_routes('/municipal', 'municipal_lote', {
 
 @bp.route('/health')
 def health():
+    # liveness publico e minimo: nao vaza detalhes de infra (AUTH-07.2)
+    detalhado = (request.args.get('detalhado') or '').strip().lower() in {'1', 'true', 'yes', 'sim'}
+    if not detalhado:
+        return jsonify({'status': 'ok'}), 200
+    # health detalhado exige admin
+    if not (current_user.is_authenticated and current_user.papel == 'admin'):
+        return _json_error('Detalhes de saúde exigem admin.', 403, error_type='forbidden')
     checks = run_health_checks(current_app.config)
     has_failure = any(not item.get('ok') for item in checks.values())
     code = 200 if not has_failure else 503
@@ -528,11 +536,13 @@ def health():
 
 
 @bp.route('/diagnostico')
+@requer_papel('admin')
 def diagnostico():
     return render_template('diagnostico.html')
 
 
 @bp.route('/diagnostico/eventos')
+@requer_papel('admin')
 def diagnostico_eventos():
     return jsonify({
         'status': 'ok',
