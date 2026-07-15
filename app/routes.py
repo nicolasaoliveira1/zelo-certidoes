@@ -80,7 +80,7 @@ from app.models import (
     get_a_vencer_dias,
 )
 from app.utils import get_config_value as _get_config_value, to_bool as _to_bool, utcnow_naive
-from app.services import auditoria, batch_engine, certidao_service, diagnostics, preflight
+from app.services import agendador, auditoria, batch_engine, certidao_service, diagnostics, preflight
 from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
 from app.services.snapshot_service import (
@@ -523,6 +523,111 @@ _register_batch_routes('/municipal', 'municipal_lote', {
     'msg_interrompido': 'Lote Municipal interrompido.',
     'msg_nao_pausado': 'Lote Municipal não está pausado.',
 })
+
+
+# --- Fluxos automatizáveis do agendador (spec 02) --------------------------
+# Reusam o MESMO run_batch_loop dos lotes manuais, mas rodam SÍNCRONO (no thread
+# do agendador) e alimentados pela fila durável. Nenhum estado de lote paralelo:
+# os locks/states por tipo são os mesmos de batch_state. `wrap_emit` (vindo do
+# job) envolve o emit real para transicionar cada TarefaEmissao.
+
+def _rodar_lote_agendado(app, ids, *, wrap_emit, execution_id, lock, state,
+                         real_emit, nome_lote, **loop_kwargs):
+    with lock:
+        batch_engine.reset_batch_state(state)
+        state.update(status='running', ids=list(ids), total=len(ids),
+                     started_at=utcnow_naive(), execution_id=execution_id)
+    _registrar_execucao_lote(nome_lote, 'default', len(ids), execution_id)
+    batch_engine.run_batch_loop(
+        app, lock=lock, state=state, emit_fn=wrap_emit(real_emit),
+        nome_lote=nome_lote, **loop_kwargs)
+
+
+def _fluxo_fgts_calc_ids(app):
+    return _calc_fgts_targets_by_scope(None, scope='default')['ids']
+
+
+def _fluxo_fgts_rodar(app, ids, *, wrap_emit, execution_id):
+    _rodar_lote_agendado(
+        app, ids, wrap_emit=wrap_emit, execution_id=execution_id,
+        lock=FGTS_BATCH_LOCK, state=FGTS_BATCH_STATE,
+        real_emit=lambda cid, drv, eid: _emitir_fgts_certidao(cid, driver=drv, execution_id=eid),
+        nome_lote='FGTS', curto='FGTS', tag='FGTS-LOTE',
+        event_prefix='fgts_batch_worker', create_driver=_criar_driver_chrome,
+        on_finish=_registrar_desfecho_lote)
+
+
+def _fluxo_rs_habilitado():
+    return _to_bool(_get_config_value('RS_ALTCHA_AUTOSOLVE_ENABLED', False), False)
+
+
+def _fluxo_rs_calc_ids(app):
+    # Sem o solver ALTCHA a emissão RS não é automatizável — não enfileira nada
+    # (mesma precondição do lote manual), evitando tarefas que só falhariam.
+    if not _fluxo_rs_habilitado():
+        return []
+    return _calc_estadual_rs_targets_by_scope(None, scope='default')['ids']
+
+
+def _fluxo_rs_rodar(app, ids, *, wrap_emit, execution_id):
+    def _on_setup(_app):
+        return _ativar_politica_autoselect_rs_temporaria()
+
+    def _on_teardown(rs_policy_ativa):
+        if rs_policy_ativa:
+            _desativar_politica_autoselect_rs_temporaria()
+
+    _rodar_lote_agendado(
+        app, ids, wrap_emit=wrap_emit, execution_id=execution_id,
+        lock=RS_BATCH_LOCK, state=RS_BATCH_STATE,
+        real_emit=lambda cid, drv, eid: _emitir_estadual_rs_certidao(
+            cid, driver=drv, usar_2captcha=True, execution_id=eid),
+        nome_lote='Estadual RS', curto='RS', tag='ESTADUAL-RS-LOTE',
+        event_prefix='rs_batch_worker',
+        create_driver=lambda: _criar_driver_chrome(anonimo=False, usar_perfil=True),
+        eager_driver=True, on_setup=_on_setup, on_teardown=_on_teardown,
+        on_finish=_registrar_desfecho_lote)
+
+
+def _fluxo_municipal_calc_ids(app):
+    dados = batch_engine.calc_targets(
+        None,
+        extra_filter=lambda q: q.filter(Certidao.tipo == TipoCertidao.MUNICIPAL),
+        scope='default', tipo=TipoCertidao.MUNICIPAL)
+    ids = []
+    for cid in dados['ids']:
+        cert = db.session.get(Certidao, cid)
+        if cert and cert.empresa and _municipal_batch_suportado(cert.empresa.cidade or ''):
+            ids.append(cid)
+    return ids
+
+
+def _fluxo_municipal_rodar(app, ids, *, wrap_emit, execution_id):
+    _rodar_lote_agendado(
+        app, ids, wrap_emit=wrap_emit, execution_id=execution_id,
+        lock=MUNICIPAL_BATCH_LOCK, state=MUNICIPAL_BATCH_STATE,
+        real_emit=lambda cid, drv, eid: _emitir_municipal_certidao_lote(
+            cid, driver=drv, execution_id=eid),
+        nome_lote='Municipal', curto='Municipal', tag=None,
+        event_prefix='municipal_batch_worker', create_driver=_criar_driver_chrome,
+        on_finish=_registrar_desfecho_lote)
+
+
+def _registrar_fluxos_agendador():
+    """Registra os fluxos automatizáveis no agendador (idempotente). Chamado no
+    import de routes; exposto para os testes re-registrarem se necessário."""
+    agendador.registrar_fluxo(TipoCertidao.FGTS, {
+        'tipo': TipoCertidao.FGTS,
+        'calc_ids': _fluxo_fgts_calc_ids, 'rodar_lote': _fluxo_fgts_rodar})
+    agendador.registrar_fluxo(TipoCertidao.ESTADUAL, {
+        'tipo': TipoCertidao.ESTADUAL,
+        'calc_ids': _fluxo_rs_calc_ids, 'rodar_lote': _fluxo_rs_rodar})
+    agendador.registrar_fluxo(TipoCertidao.MUNICIPAL, {
+        'tipo': TipoCertidao.MUNICIPAL,
+        'calc_ids': _fluxo_municipal_calc_ids, 'rodar_lote': _fluxo_municipal_rodar})
+
+
+_registrar_fluxos_agendador()
 
 
 @bp.route('/health')
