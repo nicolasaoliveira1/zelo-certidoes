@@ -12,6 +12,7 @@ from functools import wraps
 
 from flask import (
     Blueprint,
+    abort,
     flash,
     jsonify,
     redirect,
@@ -209,3 +210,93 @@ def auditoria_painel():
         filtro={'usuario_id': usuario_id, 'acao': acao or '',
                 'inicio': inicio_str, 'fim': fim_str},
     )
+
+
+# --- Gestão de usuários (admin) — AUTH-03 / AUDIT-01 ---
+
+@bp_auth.route('/admin/usuarios')
+@requer_papel('admin')
+def usuarios_painel():
+    usuarios = Usuario.query.order_by(Usuario.username).all()
+    return render_template('usuarios.html', usuarios=usuarios, papeis=PapelUsuario.TODOS)
+
+
+@bp_auth.route('/admin/usuarios/criar', methods=['POST'])
+@requer_papel('admin')
+def usuario_criar():
+    username = (request.form.get('username') or '').strip()
+    senha = request.form.get('senha') or ''
+    papel = request.form.get('papel') or PapelUsuario.LEITURA
+    if not username or not senha:
+        flash('Username e senha são obrigatórios.', 'warning')
+        return redirect(url_for('auth.usuarios_painel'))
+    try:
+        novo = usuario_service.criar_usuario(username, senha, papel)
+        auditoria.registrar('usuario.criar', alvo_tipo='usuario', alvo_id=novo.id,
+                            detalhe=f'{username}/{papel}')
+        flash(f'Usuário "{username}" criado.', 'success')
+    except ValueError as e:
+        auditoria.registrar('usuario.criar', resultado='erro', detalhe=str(e))
+        flash(str(e), 'danger')
+    return redirect(url_for('auth.usuarios_painel'))
+
+
+def _usuario_ou_404(usuario_id):
+    usuario = db.session.get(Usuario, usuario_id)
+    if usuario is None:
+        abort(404)
+    return usuario
+
+
+@bp_auth.route('/admin/usuarios/<int:usuario_id>/ativar', methods=['POST'])
+@requer_papel('admin')
+def usuario_ativar(usuario_id):
+    usuario_service.definir_ativo(_usuario_ou_404(usuario_id), True)
+    auditoria.registrar('usuario.ativar', alvo_tipo='usuario', alvo_id=usuario_id)
+    flash('Usuário ativado.', 'success')
+    return redirect(url_for('auth.usuarios_painel'))
+
+
+@bp_auth.route('/admin/usuarios/<int:usuario_id>/desativar', methods=['POST'])
+@requer_papel('admin')
+def usuario_desativar(usuario_id):
+    usuario = _usuario_ou_404(usuario_id)
+    try:
+        usuario_service.definir_ativo(usuario, False)
+        auditoria.registrar('usuario.desativar', alvo_tipo='usuario', alvo_id=usuario_id)
+        flash('Usuário desativado.', 'success')
+    except usuario_service.UltimoAdminError as e:
+        auditoria.registrar('usuario.desativar', alvo_tipo='usuario', alvo_id=usuario_id,
+                            resultado='erro', detalhe=str(e))
+        flash(str(e), 'danger')
+    return redirect(url_for('auth.usuarios_painel'))
+
+
+@bp_auth.route('/admin/usuarios/<int:usuario_id>/papel', methods=['POST'])
+@requer_papel('admin')
+def usuario_papel(usuario_id):
+    usuario = _usuario_ou_404(usuario_id)
+    papel = request.form.get('papel') or ''
+    try:
+        usuario_service.definir_papel(usuario, papel)
+        auditoria.registrar('usuario.papel', alvo_tipo='usuario', alvo_id=usuario_id, detalhe=papel)
+        flash('Papel atualizado.', 'success')
+    except (ValueError, usuario_service.UltimoAdminError) as e:
+        auditoria.registrar('usuario.papel', alvo_tipo='usuario', alvo_id=usuario_id,
+                            resultado='erro', detalhe=str(e))
+        flash(str(e), 'danger')
+    return redirect(url_for('auth.usuarios_painel'))
+
+
+@bp_auth.route('/admin/usuarios/<int:usuario_id>/resetar-senha', methods=['POST'])
+@requer_papel('admin')
+def usuario_resetar_senha(usuario_id):
+    usuario = _usuario_ou_404(usuario_id)
+    nova = request.form.get('senha') or ''
+    if not nova:
+        flash('Informe a nova senha.', 'warning')
+        return redirect(url_for('auth.usuarios_painel'))
+    usuario_service.resetar_senha(usuario, nova)
+    auditoria.registrar('usuario.resetar_senha', alvo_tipo='usuario', alvo_id=usuario_id)
+    flash('Senha redefinida.', 'success')
+    return redirect(url_for('auth.usuarios_painel'))

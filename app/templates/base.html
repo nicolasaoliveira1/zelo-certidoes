@@ -234,6 +234,10 @@
         </nav>
         <div class="sidebar-nav-footer">
             {% if current_user.papel == 'admin' %}
+            <a class="sidebar-link {% if current_endpoint == 'auth.usuarios_painel' %}active{% endif %}" href="{{ url_for('auth.usuarios_painel') }}" title="Usuários">
+                <i class="bi bi-people-fill"></i>
+                <span>Usuários</span>
+            </a>
             <a class="sidebar-link {% if current_endpoint == 'auth.auditoria_painel' %}active{% endif %}" href="{{ url_for('auth.auditoria_painel') }}" title="Auditoria">
                 <i class="bi bi-shield-check"></i>
                 <span>Auditoria</span>
