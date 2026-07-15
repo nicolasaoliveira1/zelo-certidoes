@@ -386,7 +386,8 @@ def calc_targets(start_certidao_id, extra_filter=None, scope='default', tipo=Non
     a_vencer = sum(1 for c in certidoes if c.data_validade and hoje <= c.data_validade <= limite)
     pendentes = sum(1 for c in certidoes if c.status_especial == StatusEspecial.PENDENTE)
 
-    if start_certidao_id in ids:
+    start_incluida = start_certidao_id in ids
+    if start_incluida:
         ids.remove(start_certidao_id)
         ids.insert(0, start_certidao_id)
 
@@ -394,6 +395,7 @@ def calc_targets(start_certidao_id, extra_filter=None, scope='default', tipo=Non
         'ids': ids,
         'total': len(ids),
         'scope': scope_norm,
+        'start_incluida': start_incluida,
         'vencidas': vencidas,
         'a_vencer': a_vencer,
         'pendentes': pendentes,

@@ -89,11 +89,13 @@
                                          aria-label="Ver ou editar empresa {{ empresa.nome }}">
                                 Ver/Editar
                             </a>
+                            {% if current_user.papel == 'admin' %}
                                      <a class="btn btn-sm btn-outline-danger"
                                          aria-label="Remover empresa {{ empresa.nome }}"
                                href="{{ url_for('main.empresa_remover', empresa_id=empresa.id, next=request.full_path) }}">
                                 Remover
                             </a>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}

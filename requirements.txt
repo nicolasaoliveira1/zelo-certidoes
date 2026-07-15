@@ -13,3 +13,7 @@ pdfplumber==0.11.5
 undetected-chromedriver==3.5.5
 # setuptools fornece o shim de distutils exigido pelo undetected-chromedriver no Python 3.12+
 setuptools==82.0.1
+# Autenticacao, sessao e protecao CSRF (spec 01)
+Flask-Login==0.6.3
+Flask-WTF==1.2.2
+WTForms==3.2.2

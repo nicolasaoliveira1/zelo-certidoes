@@ -79,3 +79,12 @@ class Config:
 
     # recarrega templates Jinja a cada request
     TEMPLATES_AUTO_RELOAD = True
+
+    # --- Sessao e CSRF (auth spec 01) ---
+    # Cookie de sessao endurecido; SECURE fica off no HTTP interno atual e
+    # liga por env quando houver HTTPS.
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SECURE = _env_bool('SESSION_COOKIE_SECURE', False)
+    # Protecao CSRF global (Flask-WTF). Desligavel no ambiente de teste.
+    WTF_CSRF_ENABLED = _env_bool('WTF_CSRF_ENABLED', True)

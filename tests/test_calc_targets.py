@@ -5,6 +5,7 @@ from app import db
 from app.models import (
     Certidao,
     ConfiguracaoSistema,
+    Empresa,
     StatusEspecial,
     TipoCertidao,
 )
@@ -91,3 +92,37 @@ def test_calc_targets_vazio_quando_sem_data(app, ids):
         dados = batch_engine.calc_targets(fgts.id, scope='default')
         assert dados['ids'] == []
         assert dados['total'] == 0
+
+
+def test_start_incluida_false_para_nao_definida_com_outras_vencidas(app, ids):
+    # Bug: clicar em emitir numa certidao "Nao definida" (sem validade) abria o
+    # modal de lote so porque OUTRAS do mesmo tipo estavam vencidas. A clicada
+    # nao pertence ao lote -> start_incluida deve ser False (front emite so ela).
+    with app.app_context():
+        clicada = Certidao.query.filter_by(tipo=TipoCertidao.FGTS).first()
+        clicada.data_validade = None                              # "Nao definida"
+        # segunda empresa com FGTS vencida (compoe o "lote" de outras)
+        outra_empresa = Empresa(nome='Outra', cnpj='22.222.222/2222-22',
+                                estado='RS', cidade='Tramandai')
+        db.session.add(outra_empresa)
+        db.session.commit()
+        outra = Certidao(tipo=TipoCertidao.FGTS, empresa=outra_empresa,
+                         data_validade=date.today() - timedelta(days=5))
+        db.session.add(outra)
+        db.session.commit()
+
+        dados = batch_engine.calc_targets(clicada.id, scope='default')
+        assert dados['start_incluida'] is False
+        assert clicada.id not in dados['ids']
+        assert outra.id in dados['ids']
+
+
+def test_start_incluida_true_quando_clicada_no_lote(app, ids):
+    with app.app_context():
+        fgts = Certidao.query.filter_by(tipo=TipoCertidao.FGTS).first()
+        fgts.data_validade = date.today() - timedelta(days=5)     # vencida
+        db.session.commit()
+
+        dados = batch_engine.calc_targets(fgts.id, scope='default')
+        assert dados['start_incluida'] is True
+        assert dados['ids'][0] == fgts.id

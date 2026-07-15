@@ -339,6 +339,15 @@
                         </div>
                     </div>
                 </div>
+                <div class="d-flex align-items-center">
+                    <button type="button" class="btn btn-soft-primary btn-sm btn-abrir-pasta"
+                        data-empresa-id="{{ empresa.id }}"
+                        title="Abrir pasta de certidões na rede"
+                        data-bs-tooltip="true" data-bs-placement="top"
+                        aria-label="Abrir pasta de certidões da empresa {{ empresa.nome }}">
+                        <i class="bi bi-folder2-open me-1"></i>Pasta
+                    </button>
+                </div>
             </div>
 
             <div class="card-body p-0">
@@ -385,6 +394,7 @@
                                             <i class="bi bi-eye fs-5"></i>
                                         </button>
 
+                                        {% if current_user.papel in ['operador', 'admin'] %}
                                         <button type="button" class="btn btn-sm btn-outline-warning border-0" title="Editar"
                                             data-bs-tooltip="true" data-bs-placement="top"
                                             aria-label="Editar validade da certidao {{ tipo_exibicao }} de {{ empresa.nome }}"
@@ -405,6 +415,7 @@
                                             data-status-especial="{{ certidao.status_especial.value if certidao.status_especial else '' }}">
                                             <i class="bi bi-download fs-5"></i>
                                         </button>
+                                        {% endif %}
                                     </div>
                                 </td>
                             </tr>
@@ -1995,7 +2006,10 @@
                                     valueTotalEl: fgtsBatchTotal
                                 }, data, scopeAtual);
 
-                                if (totalLote <= 1 && scopeAtual !== 'pendentes') {
+                                // Certidao fora do escopo do lote (ex.: "Não definida", sem
+                                // validade) nunca abre modal de lote: emite so a clicada.
+                                const foraDoLote = data.start_incluida === false;
+                                if (foraDoLote || (totalLote <= 1 && scopeAtual !== 'pendentes')) {
                                     if (!fgtsBatchSingleUrl) {
                                         showToast('URL de emissão indisponível.', 'error');
                                         return;
@@ -2067,7 +2081,8 @@
                                     valueTotalEl: rsBatchTotal
                                 }, data, scopeAtual);
 
-                                if (totalLote <= 1 && scopeAtual !== 'pendentes') {
+                                const foraDoLote = data.start_incluida === false;
+                                if (foraDoLote || (totalLote <= 1 && scopeAtual !== 'pendentes')) {
                                     if (!rsBatchSingleUrl) {
                                         showToast('URL de emissão indisponível.', 'error');
                                         return;
@@ -2180,7 +2195,8 @@
                                     valueTotalEl: municipalBatchTotal
                                 }, data, scopeAtual);
 
-                                if (totalLote <= 1 && scopeAtual !== 'pendentes') {
+                                const foraDoLote = data.start_incluida === false;
+                                if (foraDoLote || (totalLote <= 1 && scopeAtual !== 'pendentes')) {
                                     if (!municipalBatchSingleUrl) {
                                         showToast('URL de emissão indisponível.', 'error');
                                         return;

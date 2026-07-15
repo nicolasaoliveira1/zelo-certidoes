@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block titulo %}Auditoria{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h1 class="h4 mb-0">Trilha de auditoria</h1>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('auth.auditoria_painel') }}" class="row g-2 align-items-end">
+                <div class="col-12 col-md-3">
+                    <label for="f-usuario" class="form-label">Usuário</label>
+                    <select id="f-usuario" name="usuario_id" class="form-select">
+                        <option value="">Todos</option>
+                        {% for u in usuarios %}
+                        <option value="{{ u.id }}" {% if filtro.usuario_id==u.id %}selected{% endif %}>{{ u.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-3">
+                    <label for="f-acao" class="form-label">Ação</label>
+                    <select id="f-acao" name="acao" class="form-select">
+                        <option value="">Todas</option>
+                        {% for a in acoes %}
+                        <option value="{{ a }}" {% if filtro.acao==a %}selected{% endif %}>{{ a }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label for="f-inicio" class="form-label">De</label>
+                    <input type="date" id="f-inicio" name="inicio" value="{{ filtro.inicio }}" class="form-control">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label for="f-fim" class="form-label">Até</label>
+                    <input type="date" id="f-fim" name="fim" value="{{ filtro.fim }}" class="form-control">
+                </div>
+                <div class="col-12 col-md-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+                    <a href="{{ url_for('auth.auditoria_painel') }}" class="btn btn-ghost">Limpar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Data/hora</th>
+                        <th>Usuário</th>
+                        <th>Ação</th>
+                        <th>Alvo</th>
+                        <th>IP</th>
+                        <th>Resultado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ev in eventos %}
+                    <tr>
+                        <td class="font-monospace text-nowrap">
+                            <time class="js-utc" data-utc="{{ ev.criado_em_iso }}">{{ ev.criado_em.strftime('%d/%m/%Y %H:%M') }}</time>
+                        </td>
+                        <td>
+                            {{ ev.usuario_nome or '—' }}
+                            {% if ev.papel %}<span class="badge rounded-pill text-bg-secondary text-uppercase">{{ ev.papel }}</span>{% endif %}
+                        </td>
+                        <td class="font-monospace">{{ ev.acao }}</td>
+                        <td class="text-body-secondary small">{% if ev.alvo_tipo %}{{ ev.alvo_tipo }}{% if ev.alvo_id %} #{{ ev.alvo_id }}{% endif %}{% else %}—{% endif %}</td>
+                        <td class="font-monospace small">{{ ev.ip or '—' }}</td>
+                        <td>
+                            {% if ev.resultado == 'erro' %}
+                            <span class="badge text-bg-danger">erro</span>
+                            {% else %}
+                            <span class="badge text-bg-secondary">ok</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center text-body-secondary py-4">Nenhum evento de auditoria no filtro atual.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // criado_em vem em UTC (AD-006); converte para o horário local do PC
+    document.querySelectorAll('time.js-utc').forEach(function (el) {
+        const iso = el.getAttribute('data-utc');
+        if (!iso) return;
+        const d = new Date(iso);
+        if (!isNaN(d)) {
+            el.textContent = d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+        }
+    });
+</script>
+{% endblock %}

@@ -80,10 +80,12 @@ from app.models import (
     get_a_vencer_dias,
 )
 from app.utils import get_config_value as _get_config_value, to_bool as _to_bool, utcnow_naive
-from app.services import batch_engine, certidao_service, diagnostics, preflight
+from app.services import auditoria, batch_engine, certidao_service, diagnostics, preflight
 from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
 from app.services.health import run_health_checks
+from app.auth import requer_papel
+from flask_login import current_user
 
 bp = Blueprint('main', __name__)
 
@@ -170,6 +172,7 @@ def _batch_targets_vazios(scope='default'):
         'ids': [],
         'total': 0,
         'scope': scope_norm,
+        'start_incluida': False,
         'vencidas': 0,
         'a_vencer': 0,
         'pendentes': 0,
@@ -434,6 +437,7 @@ def _register_batch_routes(prefix, endpoint_base, cfg):
         with lock:
             batch_engine.append_batch_message(
                 state, f"Lote {nome} iniciado. Total={dados_lote['total']}.", level='info')
+        auditoria.registrar('lote.iniciar', alvo_tipo='certidao', alvo_id=certidao_id, detalhe=nome)
         return jsonify({'status': 'ok'})
 
     def pausar():
@@ -466,11 +470,13 @@ def _register_batch_routes(prefix, endpoint_base, cfg):
     def status_view():
         return jsonify(batch_engine.status_payload_locked(lock, state))
 
+    # info/status sao leitura (dashboard poll); iniciar/pausar/parar/retomar mutam -> operador
+    op = requer_papel('operador')
     bp.add_url_rule(f'{prefix}/lote/info/<int:certidao_id>', f'{endpoint_base}_info', info)
-    bp.add_url_rule(f'{prefix}/lote/iniciar', f'{endpoint_base}_iniciar', iniciar, methods=['POST'])
-    bp.add_url_rule(f'{prefix}/lote/pausar', f'{endpoint_base}_pausar', pausar, methods=['POST'])
-    bp.add_url_rule(f'{prefix}/lote/parar', f'{endpoint_base}_parar', parar, methods=['POST'])
-    bp.add_url_rule(f'{prefix}/lote/retomar', f'{endpoint_base}_retomar', retomar, methods=['POST'])
+    bp.add_url_rule(f'{prefix}/lote/iniciar', f'{endpoint_base}_iniciar', op(iniciar), methods=['POST'])
+    bp.add_url_rule(f'{prefix}/lote/pausar', f'{endpoint_base}_pausar', op(pausar), methods=['POST'])
+    bp.add_url_rule(f'{prefix}/lote/parar', f'{endpoint_base}_parar', op(parar), methods=['POST'])
+    bp.add_url_rule(f'{prefix}/lote/retomar', f'{endpoint_base}_retomar', op(retomar), methods=['POST'])
     bp.add_url_rule(f'{prefix}/lote/status', f'{endpoint_base}_status', status_view)
 
 
@@ -517,6 +523,13 @@ _register_batch_routes('/municipal', 'municipal_lote', {
 
 @bp.route('/health')
 def health():
+    # liveness publico e minimo: nao vaza detalhes de infra (AUTH-07.2)
+    detalhado = _to_bool(request.args.get('detalhado'))
+    if not detalhado:
+        return jsonify({'status': 'ok'}), 200
+    # health detalhado exige admin
+    if not (current_user.is_authenticated and current_user.papel == 'admin'):
+        return _json_error('Detalhes de saúde exigem admin.', 403, error_type='forbidden')
     checks = run_health_checks(current_app.config)
     has_failure = any(not item.get('ok') for item in checks.values())
     code = 200 if not has_failure else 503
@@ -524,11 +537,13 @@ def health():
 
 
 @bp.route('/diagnostico')
+@requer_papel('admin')
 def diagnostico():
     return render_template('diagnostico.html')
 
 
 @bp.route('/diagnostico/eventos')
+@requer_papel('admin')
 def diagnostico_eventos():
     return jsonify({
         'status': 'ok',
@@ -538,6 +553,7 @@ def diagnostico_eventos():
 
 
 @bp.route('/fgts/emitir_unico', methods=['POST'])
+@requer_papel('operador')
 def fgts_emitir_unico():
     dados = request.get_json() or {}
     certidao_id = dados.get('certidao_id')
@@ -905,6 +921,7 @@ def empresa_detalhe(empresa_id):
 
 
 @bp.route('/empresa/<int:empresa_id>/editar', methods=['POST'])
+@requer_papel('operador')
 def empresa_editar(empresa_id):
     empresa = Empresa.query.get_or_404(empresa_id)
     nome = (request.form.get('nome') or '').strip()
@@ -937,14 +954,18 @@ def empresa_editar(empresa_id):
     try:
         db.session.commit()
         flash('Empresa atualizada com sucesso.', 'success')
+        auditoria.registrar('empresa.editar', alvo_tipo='empresa', alvo_id=empresa_id)
     except Exception as exc:
         db.session.rollback()
         flash(f'Erro ao atualizar empresa: {exc}', 'danger')
+        auditoria.registrar('empresa.editar', alvo_tipo='empresa', alvo_id=empresa_id,
+                            resultado='erro', detalhe=str(exc))
 
     return redirect(next_url)
 
 
 @bp.route('/empresa/<int:empresa_id>/remover', methods=['GET', 'POST'])
+@requer_papel('admin')
 def empresa_remover(empresa_id):
     empresa = Empresa.query.get_or_404(empresa_id)
     next_url = request.values.get('next') or url_for('main.empresas')
@@ -970,11 +991,40 @@ def empresa_remover(empresa_id):
         db.session.delete(empresa)
         db.session.commit()
         flash(f'Empresa "{empresa.nome}" removida com sucesso.', 'success')
+        auditoria.registrar('empresa.remover', alvo_tipo='empresa', alvo_id=empresa_id)
     except Exception as exc:
         db.session.rollback()
         flash(f'Erro ao remover empresa: {exc}', 'danger')
+        auditoria.registrar('empresa.remover', alvo_tipo='empresa', alvo_id=empresa_id,
+                            resultado='erro', detalhe=str(exc))
 
     return redirect(next_url)
+
+
+@bp.route('/empresa/<int:empresa_id>/abrir-pasta', methods=['POST'])
+def abrir_pasta_empresa(empresa_id):
+    """Abre a pasta CERTIDOES da empresa no Explorer da maquina local.
+
+    O app roda localmente na estacao do operador (mesma maquina do Selenium e do
+    drive de rede), entao os.startfile abre o Explorer para quem esta operando.
+    Acao de leitura — qualquer papel logado."""
+    empresa = Empresa.query.get_or_404(empresa_id)
+    pasta_empresa = file_manager.encontrar_pasta_empresa(empresa.nome)
+    if not pasta_empresa:
+        return _json_error(
+            f'Pasta da empresa "{empresa.nome}" nao encontrada na rede.', 404,
+            error_type='network_path')
+    pasta = file_manager.encontrar_caminho_final(pasta_empresa)
+    if not pasta or not os.path.isdir(pasta):
+        return _json_error('Pasta de certidoes nao encontrada.', 404, error_type='network_path')
+    if not hasattr(os, 'startfile'):
+        return _json_error('Abrir pasta so e suportado no Windows.', 400, error_type='plataforma')
+    try:
+        os.startfile(pasta)
+    except OSError as e:
+        return _json_error(f'Nao foi possivel abrir a pasta: {e}', 500)
+    log_event('empresa_pasta_aberta', empresa_id=empresa_id, pasta=pasta)
+    return jsonify({'status': 'ok', 'pasta': pasta})
 
 
 _NOMES_EXIBICAO_CIDADE = {
@@ -989,6 +1039,7 @@ _NOMES_EXIBICAO_CIDADE = {
 
 
 @bp.route('/empresa/nova', endpoint='nova_empresa')
+@requer_papel('operador')
 def pagina_nova_empresa():
     municipios_db = Municipio.query.order_by(Municipio.nome).all()
     vistos = set()
@@ -1242,6 +1293,7 @@ _TIPOS_VENCER = [
 
 
 @bp.route('/configuracoes', methods=['GET', 'POST'])
+@requer_papel('admin')
 def configuracoes():
     try:
         config = db.session.get(ConfiguracaoSistema, 1)
@@ -1291,9 +1343,11 @@ def configuracoes():
         try:
             db.session.commit()
             flash('Configuracoes atualizadas com sucesso.', 'success')
+            auditoria.registrar('config.editar')
         except Exception as exc:
             db.session.rollback()
             flash(f'Erro ao salvar configuracoes: {exc}', 'danger')
+            auditoria.registrar('config.editar', resultado='erro', detalhe=str(exc))
 
         return redirect(url_for('main.configuracoes'))
 
@@ -1313,6 +1367,7 @@ def configuracoes():
 
 
 @bp.route('/empresa/adicionar', methods=['POST'])
+@requer_papel('operador')
 def adicionar_empresa():
     # dados formulário
     nome = (request.form.get('nome') or '').strip()
@@ -1410,14 +1465,17 @@ def adicionar_empresa():
     try:
         db.session.commit()
         flash(f'Empresa "{nome}" cadastrada com sucesso!', 'success')
+        auditoria.registrar('empresa.criar', alvo_tipo='empresa', alvo_id=empresa_nova.id)
     except Exception as e:
         db.session.rollback()
         flash(f'Erro ao cadastrar empresa: {e}', 'danger')
+        auditoria.registrar('empresa.criar', resultado='erro', detalhe=str(e))
 
     return _redirect_apos_cadastro()
 
 
 @bp.route('/certidao/atualizar/<int:certidao_id>', methods=['POST'])
+@requer_papel('operador')
 def atualizar_validade(certidao_id):
     certidao = Certidao.query.get_or_404(certidao_id)
     nova_data_str = request.form.get('nova_validade')
@@ -1428,22 +1486,29 @@ def atualizar_validade(certidao_id):
         if ok:
             flash(
                 f"Validade da certidão {certidao.tipo.value} da empresa {certidao.empresa.nome} atualizada com sucesso!", 'success')
+            auditoria.registrar('certidao.aplicar_validade', alvo_tipo='certidao', alvo_id=certidao_id)
         else:
             flash(f"Erro ao atualizar validade: {erro}", 'danger')
+            auditoria.registrar('certidao.aplicar_validade', alvo_tipo='certidao',
+                                alvo_id=certidao_id, resultado='erro', detalhe=erro)
     else:
         flash("Nenhuma data foi fornecida.", 'warning')
     return redirect(url_for('main.dashboard'))
 
 
 @bp.route('/certidao/marcar_pendente/<int:certidao_id>', methods=['POST'])
+@requer_papel('operador')
 def marcar_pendente(certidao_id):
     certidao = Certidao.query.get_or_404(certidao_id)
     ok, erro = certidao_service.marcar_pendente(certidao)
     if ok:
         flash(
             f'Certidão {certidao.tipo.value} da empresa {certidao.empresa.nome} marcada como Pendente.', 'info')
+        auditoria.registrar('certidao.marcar_pendente', alvo_tipo='certidao', alvo_id=certidao_id)
     else:
         flash(f'Erro ao marcar como pendente: {erro}', 'danger')
+        auditoria.registrar('certidao.marcar_pendente', alvo_tipo='certidao',
+                            alvo_id=certidao_id, resultado='erro', detalhe=erro)
 
     return redirect(url_for('main.dashboard'))
 
@@ -2226,6 +2291,7 @@ def _montar_resposta_baixar(certidao, cfg, resultado):
 
 
 @bp.route('/certidao/baixar/<int:certidao_id>')
+@requer_papel('operador')
 def baixar_certidao(certidao_id):
     file_manager.criar_chave_interrupcao()
     certidao = Certidao.query.get_or_404(certidao_id)
@@ -2248,6 +2314,7 @@ def baixar_certidao(certidao_id):
 
 
 @bp.route('/certidao/salvar_data_confirmada', methods=['POST'])
+@requer_papel('operador')
 def salvar_data_confirmada():
     dados = request.get_json()
     certidao_id = dados.get('certidao_id')
@@ -2272,6 +2339,7 @@ def salvar_data_confirmada():
 
 
 @bp.route('/certidao/monitorar_download_federal/<int:certidao_id>')
+@requer_papel('operador')
 def monitorar_download_federal(certidao_id):
     certidao = Certidao.query.get_or_404(certidao_id)
 
@@ -2372,6 +2440,7 @@ def monitorar_download_federal(certidao_id):
 
 
 @bp.route('/certidao/monitorar_download_federal/stop', methods=['POST'])
+@requer_papel('operador')
 def interromper_monitoramento_federal():
     file_manager.criar_chave_interrupcao()
     return jsonify({'status': 'ok'})
@@ -2437,19 +2506,26 @@ def gerar_token_visualizar(certidao_id):
 
 
 @bp.route('/certidao/marcar_pendente_json/<int:certidao_id>', methods=['POST'])
+@requer_papel('operador')
 def marcar_pendente_json(certidao_id):
     try:
         certidao = Certidao.query.get_or_404(certidao_id)
         ok, erro = certidao_service.marcar_pendente(certidao)
         if not ok:
+            auditoria.registrar('certidao.marcar_pendente', alvo_tipo='certidao',
+                                alvo_id=certidao_id, resultado='erro', detalhe=erro)
             return _json_error(erro, 500)
+        auditoria.registrar('certidao.marcar_pendente', alvo_tipo='certidao', alvo_id=certidao_id)
         return jsonify({'status': 'success'})
     except Exception as e:
         db.session.rollback()
+        auditoria.registrar('certidao.marcar_pendente', alvo_tipo='certidao',
+                            alvo_id=certidao_id, resultado='erro', detalhe=str(e))
         return _json_error(code=500, exc=e)
 
 
 @bp.route('/certidao/atualizar_json/<int:certidao_id>', methods=['POST'])
+@requer_papel('operador')
 def atualizar_validade_json(certidao_id):
     data = request.get_json()
     nova_data_str = data.get('nova_validade')
@@ -2461,8 +2537,11 @@ def atualizar_validade_json(certidao_id):
             nova_data = datetime.strptime(nova_data_str, '%Y-%m-%d').date()
             ok, erro = certidao_service.aplicar_validade(certidao, nova_data)
             if not ok:
+                auditoria.registrar('certidao.aplicar_validade', alvo_tipo='certidao',
+                                    alvo_id=certidao_id, resultado='erro', detalhe=erro)
                 return _json_error(erro, 500)
 
+            auditoria.registrar('certidao.aplicar_validade', alvo_tipo='certidao', alvo_id=certidao_id)
             return jsonify({
                 'status': 'success',
                 'message': f'Validade de {certidao.empresa.nome} atualizada com sucesso!',

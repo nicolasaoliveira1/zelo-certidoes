@@ -2,6 +2,8 @@ import enum
 from app import db
 from app.utils import utcnow_naive
 from datetime import date, datetime, timezone
+from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
 
 
 class TipoCertidao(enum.Enum):
@@ -223,6 +225,89 @@ class SnapshotCertidao(db.Model):
 
     def __repr__(self):
         return f'<SnapshotCertidao {self.data} {self.tipo}/{self.status}={self.quantidade}>'
+
+
+class PapelUsuario:
+    """Papéis fixos (String, não db.Enum — portabilidade SQLite↔MySQL; ver AD-005).
+
+    Rank: leitura < operador < admin (admin = superusuário)."""
+    ADMIN = 'admin'
+    OPERADOR = 'operador'
+    LEITURA = 'leitura'
+    TODOS = (ADMIN, OPERADOR, LEITURA)
+
+
+class Usuario(db.Model, UserMixin):
+    """Credenciais e papel do usuário; integra Flask-Login (AD-007)."""
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    senha_hash = db.Column(db.String(255), nullable=False)
+    papel = db.Column(db.String(20), nullable=False, default=PapelUsuario.LEITURA)
+    ativo = db.Column(db.Boolean, nullable=False, default=True)
+    criado_em = db.Column(db.DateTime, nullable=False, default=utcnow_naive)
+
+    def set_senha(self, senha):
+        # werkzeug scrypt por padrão; persiste só o hash (AUTH-02)
+        self.senha_hash = generate_password_hash(senha)
+
+    def checar_senha(self, senha):
+        return check_password_hash(self.senha_hash, senha)
+
+    @property
+    def is_active(self):
+        # sobrescreve UserMixin: sessão de usuário desativado é barrada (edge case)
+        return self.ativo
+
+    def __repr__(self):
+        return f'<Usuario {self.username} ({self.papel})>'
+
+
+class EventoAuditoria(db.Model):
+    """Trilha de ações sensíveis (quem/quando/ação/alvo/IP/resultado).
+
+    Espelha EventoDiagnostico; criado_em em UTC naive, serializado como UTC no
+    to_dict (AD-006 — exceção explícita a AD-004: auditoria é registro técnico)."""
+    __tablename__ = 'evento_auditoria'
+
+    id = db.Column(db.Integer, primary_key=True)
+    criado_em = db.Column(db.DateTime, nullable=False, default=utcnow_naive, index=True)
+    usuario_id = db.Column(db.Integer, nullable=True, index=True)
+    usuario_nome = db.Column(db.String(80), nullable=True)  # snapshot: sobrevive à remoção
+    papel = db.Column(db.String(20), nullable=True)
+    acao = db.Column(db.String(80), nullable=False, index=True)
+    alvo_tipo = db.Column(db.String(40), nullable=True)
+    alvo_id = db.Column(db.Integer, nullable=True)
+    ip = db.Column(db.String(45), nullable=True)  # cabe IPv6
+    resultado = db.Column(db.String(10), nullable=False, default='ok')  # 'ok' | 'erro'
+    detalhe = db.Column(db.String(500), nullable=True)
+    request_id = db.Column(db.String(40), nullable=True)
+
+    @property
+    def criado_em_iso(self):
+        # criado_em em UTC naive; marca tzinfo=UTC para o front (new Date)
+        # converter para o horário local do PC (mesmo padrão do EventoDiagnostico)
+        return (self.criado_em.replace(tzinfo=timezone.utc).isoformat()
+                if self.criado_em else None)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'criado_em': self.criado_em_iso,
+            'usuario_id': self.usuario_id,
+            'usuario_nome': self.usuario_nome,
+            'papel': self.papel,
+            'acao': self.acao,
+            'alvo_tipo': self.alvo_tipo,
+            'alvo_id': self.alvo_id,
+            'ip': self.ip,
+            'resultado': self.resultado,
+            'detalhe': self.detalhe,
+            'request_id': self.request_id,
+        }
+
+    def __repr__(self):
+        return f'<EventoAuditoria {self.acao} {self.resultado}>'
 
 
 class ConfiguracaoSistema(db.Model):

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block titulo %}Usuários{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <h1 class="h4 mb-3">Usuários</h1>
+
+    <div class="card mb-3">
+        <div class="card-header fw-semibold">Novo usuário</div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('auth.usuario_criar') }}" class="row g-2 align-items-end">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="col-12 col-md-4">
+                    <label for="n-username" class="form-label">Usuário</label>
+                    <input type="text" id="n-username" name="username" class="form-control" required>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label for="n-senha" class="form-label">Senha</label>
+                    <input type="password" id="n-senha" name="senha" class="form-control" required>
+                </div>
+                <div class="col-8 col-md-2">
+                    <label for="n-papel" class="form-label">Papel</label>
+                    <select id="n-papel" name="papel" class="form-select">
+                        {% for p in papeis %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="col-4 col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">Criar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Usuário</th>
+                        <th>Papel</th>
+                        <th>Status</th>
+                        <th class="text-end">Redefinir senha</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in usuarios %}
+                    <tr>
+                        <td class="fw-semibold">{{ u.username }}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('auth.usuario_papel', usuario_id=u.id) }}"
+                                class="d-flex gap-1">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <select name="papel" class="form-select form-select-sm" style="max-width: 9rem;">
+                                    {% for p in papeis %}<option value="{{ p }}" {% if u.papel==p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-soft-primary">Salvar</button>
+                            </form>
+                        </td>
+                        <td>
+                            {% if u.ativo %}
+                            <span class="badge text-bg-secondary">ativo</span>
+                            <form method="POST" action="{{ url_for('auth.usuario_desativar', usuario_id=u.id) }}"
+                                class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-ghost">Desativar</button>
+                            </form>
+                            {% else %}
+                            <span class="badge text-bg-danger">inativo</span>
+                            <form method="POST" action="{{ url_for('auth.usuario_ativar', usuario_id=u.id) }}"
+                                class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-soft-primary">Ativar</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form method="POST" action="{{ url_for('auth.usuario_resetar_senha', usuario_id=u.id) }}"
+                                class="d-flex gap-1 justify-content-end">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="password" name="senha" class="form-control form-control-sm"
+                                    placeholder="Nova senha" style="max-width: 11rem;" required>
+                                <button type="submit" class="btn btn-sm btn-ghost">Redefinir</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

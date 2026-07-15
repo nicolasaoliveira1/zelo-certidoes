@@ -44,6 +44,10 @@
         <p class="text-muted mb-0">CNPJ: {{ empresa.cnpj }}</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-soft-primary btn-abrir-pasta" data-empresa-id="{{ empresa.id }}"
+            aria-label="Abrir pasta de certidões da empresa {{ empresa.nome }}">
+            <i class="bi bi-folder2-open me-1"></i>Abrir pasta
+        </button>
         <a class="btn btn-outline-secondary" href="{{ url_for('main.empresas') }}" aria-label="Voltar para lista de empresas">Voltar</a>
         <a class="btn btn-success" href="{{ url_for('main.nova_empresa') }}" aria-label="Cadastrar nova empresa">Nova Empresa</a>
     </div>
@@ -55,6 +59,7 @@
     </div>
     <div class="card-body">
         <form method="POST" action="{{ url_for('main.empresa_editar', empresa_id=empresa.id) }}" class="row g-3" id="empresa-editar-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="next" value="{{ request.path }}">
 
             <div class="col-12 col-lg-6">
@@ -115,11 +120,15 @@
 
         </form>
         <div class="d-flex flex-wrap gap-2">
+            {% if current_user.papel in ['operador', 'admin'] %}
             <button type="submit" class="btn btn-primary" form="empresa-editar-form" aria-label="Salvar alteracoes da empresa">Salvar alteracoes</button>
+            {% endif %}
+            {% if current_user.papel == 'admin' %}
             <a class="btn btn-outline-danger" aria-label="Remover empresa"
                href="{{ url_for('main.empresa_remover', empresa_id=empresa.id, next=request.path) }}">
                 Remover empresa
             </a>
+            {% endif %}
         </div>
     </div>
 </div>

@@ -21,6 +21,7 @@
             </div>
             <div class="card-body p-4">
                 <form method="POST" action="{{ url_for('main.adicionar_empresa') }}" class="row g-3">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="origem" value="nova_empresa">
 
                     <div class="col-12">

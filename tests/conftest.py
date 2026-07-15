@@ -17,6 +17,9 @@ os.environ.setdefault('LOG_JSON_FILE', 'false')
 os.environ.setdefault('DIAGNOSTICO_PERSISTIR', 'false')
 # Mantem a precondicao do lote RS deterministica (flag desligada) nos testes.
 os.environ.setdefault('RS_ALTCHA_AUTOSOLVE_ENABLED', 'false')
+# CSRF desligado no ambiente de teste (o client nao envia token); a imposicao de
+# CSRF e provada num teste dedicado que religa a flag (tests/test_csrf.py).
+os.environ.setdefault('WTF_CSRF_ENABLED', 'false')
 
 _fd, _DBPATH = tempfile.mkstemp(suffix='.db')
 os.close(_fd)
@@ -31,7 +34,14 @@ os.environ.setdefault('CHROME_PROFILE_DIR', _TMPDIR)
 import pytest  # noqa: E402
 
 from app import create_app, db  # noqa: E402
-from app.models import Certidao, Empresa, TipoCertidao  # noqa: E402
+from app.models import Certidao, Empresa, TipoCertidao, Usuario  # noqa: E402
+
+# Credenciais por papel usadas pelos fixtures de client autenticado.
+USUARIOS_TESTE = {
+    'admin': ('admin_test', 'senha-admin-1'),
+    'operador': ('op_test', 'senha-op-1'),
+    'leitura': ('leitura_test', 'senha-leitura-1'),
+}
 
 
 @pytest.fixture(scope='session')
@@ -51,6 +61,12 @@ def ids(app):
         db.session.commit()
         for tipo in TipoCertidao:
             db.session.add(Certidao(tipo=tipo, empresa=empresa))
+        db.session.commit()
+        # usuarios por papel (papel_key coincide com o valor de PapelUsuario)
+        for papel_key, (uname, senha) in USUARIOS_TESTE.items():
+            u = Usuario(username=uname, papel=papel_key)
+            u.set_senha(senha)
+            db.session.add(u)
         db.session.commit()
         mapa = {
             'fgts': Certidao.query.filter_by(tipo=TipoCertidao.FGTS).first().id,
@@ -72,4 +88,25 @@ def cid(ids):
 
 @pytest.fixture()
 def client(app, ids):
+    """Client autenticado como admin (a maioria dos testes de rota opera assim)."""
+    c = app.test_client()
+    uname, senha = USUARIOS_TESTE['admin']
+    c.post('/login', data={'username': uname, 'senha': senha})
+    return c
+
+
+@pytest.fixture()
+def client_anon(app, ids):
+    """Client sem login, para testar enforcement de autenticacao."""
     return app.test_client()
+
+
+@pytest.fixture()
+def login_as(app, ids):
+    """Fabrica um client autenticado com o papel pedido: login_as('operador')."""
+    def _login(papel):
+        c = app.test_client()
+        uname, senha = USUARIOS_TESTE[papel]
+        c.post('/login', data={'username': uname, 'senha': senha})
+        return c
+    return _login
