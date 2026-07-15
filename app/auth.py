@@ -7,6 +7,7 @@ Camadas (ver AD-005):
 - Rotas de sessão: `GET/POST /login`, `POST /logout`.
 - Error handlers: CSRFError (400 claro), 403.
 """
+from datetime import datetime
 from functools import wraps
 
 from flask import (
@@ -27,7 +28,7 @@ from flask_login import (
 from flask_wtf.csrf import CSRFError
 
 from app import db
-from app.models import Usuario, PapelUsuario
+from app.models import Usuario, PapelUsuario, EventoAuditoria
 from app.services import auditoria, usuario_service
 from app.services.correlation import CorrelationContext
 
@@ -114,8 +115,7 @@ def _resposta_forbidden():
     if _prefere_json():
         return _envelope_erro('Permissão insuficiente para esta ação.', 403,
                               error_type='forbidden'), 403
-    flash('Você não tem permissão para acessar isso.', 'warning')
-    return redirect(url_for('main.dashboard'))
+    return render_template('403.html'), 403
 
 
 # --- Autorização ---
@@ -170,3 +170,42 @@ def _destino_seguro(prox):
     if prox and prox.startswith('/') and not prox.startswith('//'):
         return prox
     return url_for('main.dashboard')
+
+
+# --- Painel de auditoria (admin) — AUDIT-02 ---
+
+def _parse_data(texto, *, fim_do_dia=False):
+    if not texto:
+        return None
+    try:
+        d = datetime.strptime(texto, '%Y-%m-%d')
+    except ValueError:
+        return None
+    return d.replace(hour=23, minute=59, second=59) if fim_do_dia else d
+
+
+@bp_auth.route('/admin/auditoria')
+@requer_papel('admin')
+def auditoria_painel():
+    usuario_id = request.args.get('usuario_id', type=int)
+    acao = request.args.get('acao') or None
+    inicio_str = request.args.get('inicio') or ''
+    fim_str = request.args.get('fim') or ''
+    eventos = auditoria.consultar(
+        usuario_id=usuario_id,
+        acao=acao,
+        inicio=_parse_data(inicio_str),
+        fim=_parse_data(fim_str, fim_do_dia=True),
+        limite=300,
+    )
+    usuarios = Usuario.query.order_by(Usuario.username).all()
+    acoes = [r[0] for r in db.session.query(EventoAuditoria.acao)
+             .distinct().order_by(EventoAuditoria.acao).all()]
+    return render_template(
+        'auditoria.html',
+        eventos=eventos,
+        usuarios=usuarios,
+        acoes=acoes,
+        filtro={'usuario_id': usuario_id, 'acao': acao or '',
+                'inicio': inicio_str, 'fim': fim_str},
+    )
