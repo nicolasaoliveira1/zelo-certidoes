@@ -58,6 +58,29 @@ def test_registrar_best_effort_nao_propaga(ctx, app, monkeypatch):
     assert EventoAuditoria.query.filter_by(acao='config.editar').first() is None
 
 
+def test_registrar_ator_sintetico_fora_de_request(ctx, app):
+    """Spec 02: o job do agendador audita com ator sintético, sem current_user."""
+    auditoria.registrar('agendador.lote', alvo_tipo='certidao', alvo_id=5,
+                        ator='agendador')
+    ev = EventoAuditoria.query.filter_by(acao='agendador.lote').first()
+    assert ev is not None
+    assert ev.usuario_nome == 'agendador'
+    assert ev.papel == 'sistema'
+    assert ev.usuario_id is None
+    assert ev.alvo_id == 5
+
+
+def test_registrar_ator_nao_sobrepoe_usuario_logado(ctx, app):
+    from flask_login import login_user
+    u = svc.criar_usuario('carla', 'senha-1', PapelUsuario.OPERADOR)
+    with app.test_request_context('/'):
+        login_user(u)
+        auditoria.registrar('agendador.lote', ator='agendador')
+    ev = EventoAuditoria.query.filter_by(acao='agendador.lote').first()
+    assert ev.usuario_nome == 'carla'  # ator ignorado quando há usuário logado
+    assert ev.papel == PapelUsuario.OPERADOR
+
+
 def test_consultar_filtra_por_acao(ctx, app):
     with app.test_request_context('/'):
         auditoria.registrar('login')

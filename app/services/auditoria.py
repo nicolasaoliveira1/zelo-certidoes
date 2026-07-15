@@ -13,7 +13,7 @@ from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
 
 
-def registrar(acao, *, alvo_tipo=None, alvo_id=None, resultado='ok', detalhe=None):
+def registrar(acao, *, alvo_tipo=None, alvo_id=None, resultado='ok', detalhe=None, ator=None):
     try:
         usuario_id = usuario_nome = papel = ip = None
         if has_request_context():
@@ -22,6 +22,12 @@ def registrar(acao, *, alvo_tipo=None, alvo_id=None, resultado='ok', detalhe=Non
                 usuario_id = current_user.id
                 usuario_nome = current_user.username
                 papel = current_user.papel
+        # Ator sintético (ex.: 'agendador') para ações sem usuário logado / fora
+        # de request — integra o job do agendador na trilha de auditoria (spec 02).
+        # Só entra quando não há usuário autenticado: nunca sobrepõe current_user.
+        if usuario_nome is None and ator:
+            usuario_nome = ator
+            papel = 'sistema'
         evento = EventoAuditoria(
             acao=acao,
             alvo_tipo=alvo_tipo,
