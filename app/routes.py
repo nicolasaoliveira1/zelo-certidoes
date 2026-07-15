@@ -534,6 +534,13 @@ _register_batch_routes('/municipal', 'municipal_lote', {
 def _rodar_lote_agendado(app, ids, *, wrap_emit, execution_id, lock, state,
                          real_emit, nome_lote, **loop_kwargs):
     with lock:
+        # Serialização com o lote manual: se já há um em andamento/pausado deste
+        # tipo, o agendador não clobbera o estado — pula e roda no próximo ciclo
+        # (edge case da spec: "respeitar o lock global do tipo").
+        if state.get('status') in ('running', 'paused'):
+            log_event('agendador_lote_pulado_em_andamento', lote=nome_lote,
+                      execution_id=execution_id)
+            return
         batch_engine.reset_batch_state(state)
         state.update(status='running', ids=list(ids), total=len(ids),
                      started_at=utcnow_naive(), execution_id=execution_id)

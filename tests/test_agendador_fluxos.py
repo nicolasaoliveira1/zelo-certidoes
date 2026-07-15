@@ -4,8 +4,9 @@ from datetime import date, timedelta
 import pytest
 
 from app import db, routes
+from app.automation.batch_state import FGTS_BATCH_STATE
 from app.models import Certidao, Empresa, TipoCertidao
-from app.services import agendador
+from app.services import agendador, batch_engine
 
 
 @pytest.fixture()
@@ -22,6 +23,25 @@ def test_registra_os_tres_fluxos(fluxos_registrados):
     for cfg in fluxos_registrados.values():
         assert callable(cfg['calc_ids'])
         assert callable(cfg['rodar_lote'])
+
+
+def test_rodar_lote_pula_se_lote_manual_em_andamento(app, ids, fluxos_registrados):
+    """Edge case: com um lote FGTS manual 'running', o agendador não clobbera o
+    estado nem chama o emit — respeita a serialização e roda no próximo ciclo."""
+    try:
+        FGTS_BATCH_STATE['status'] = 'running'
+
+        def _emit_proibido(cid, drv, eid):
+            raise AssertionError('nao deveria emitir com lote manual em andamento')
+
+        with app.app_context():
+            fluxos_registrados['FGTS']['rodar_lote'](
+                app, [ids['fgts']],
+                wrap_emit=lambda real: _emit_proibido, execution_id='x')
+        # estado do lote manual preservado (nao foi resetado)
+        assert FGTS_BATCH_STATE['status'] == 'running'
+    finally:
+        batch_engine.reset_batch_state(FGTS_BATCH_STATE)
 
 
 def test_fgts_calc_ids_traz_a_vencer(app, ids, fluxos_registrados):
