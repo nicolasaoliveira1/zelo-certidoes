@@ -1000,6 +1000,32 @@ def empresa_remover(empresa_id):
     return redirect(next_url)
 
 
+@bp.route('/empresa/<int:empresa_id>/abrir-pasta', methods=['POST'])
+def abrir_pasta_empresa(empresa_id):
+    """Abre a pasta CERTIDOES da empresa no Explorer da maquina local.
+
+    O app roda localmente na estacao do operador (mesma maquina do Selenium e do
+    drive de rede), entao os.startfile abre o Explorer para quem esta operando.
+    Acao de leitura — qualquer papel logado."""
+    empresa = Empresa.query.get_or_404(empresa_id)
+    pasta_empresa = file_manager.encontrar_pasta_empresa(empresa.nome)
+    if not pasta_empresa:
+        return _json_error(
+            f'Pasta da empresa "{empresa.nome}" nao encontrada na rede.', 404,
+            error_type='network_path')
+    pasta = file_manager.encontrar_caminho_final(pasta_empresa)
+    if not pasta or not os.path.isdir(pasta):
+        return _json_error('Pasta de certidoes nao encontrada.', 404, error_type='network_path')
+    if not hasattr(os, 'startfile'):
+        return _json_error('Abrir pasta so e suportado no Windows.', 400, error_type='plataforma')
+    try:
+        os.startfile(pasta)
+    except OSError as e:
+        return _json_error(f'Nao foi possivel abrir a pasta: {e}', 500)
+    log_event('empresa_pasta_aberta', empresa_id=empresa_id, pasta=pasta)
+    return jsonify({'status': 'ok', 'pasta': pasta})
+
+
 _NOMES_EXIBICAO_CIDADE = {
     'Capao da Canoa': 'Capão da Canoa',
     'Imbe': 'Imbé',
