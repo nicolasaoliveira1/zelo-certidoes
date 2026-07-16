@@ -663,7 +663,7 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False, 
             local_driver, 'estadual_rs_lote',
             certidao_id=certidao_id, execution_id=execution_id,
         )
-        return False, True, mensagem_usuario(exc, contexto='lote Estadual RS')
+        return False, _classificar_grave(exc), mensagem_usuario(exc, contexto='lote Estadual RS')
     finally:
         if criado_localmente:
             RS_BATCH_STATE['driver'] = None
@@ -1125,7 +1125,7 @@ def _emitir_municipal_certidao_lote(certidao_id, driver=None, execution_id=None)
             local_driver, 'municipal_lote',
             certidao_id=certidao_id, execution_id=execution_id,
         )
-        return False, True, mensagem_usuario(exc, contexto='lote municipal')
+        return False, _classificar_grave(exc), mensagem_usuario(exc, contexto='lote municipal')
     finally:
         if local_driver and not criado_localmente:
             _fgts_fechar_abas_extras(local_driver)
@@ -1284,7 +1284,7 @@ def _emitir_fgts_certidao(certidao_id, driver=None, execution_id=None):
         capture.capturar_contexto_falha(
             local_driver, 'fgts', certidao_id=certidao_id, execution_id=execution_id,
         )
-        return False, True, mensagem_usuario(exc, contexto='FGTS')
+        return False, _classificar_grave(exc), mensagem_usuario(exc, contexto='FGTS')
     finally:
         if criado_localmente:
             FGTS_BATCH_STATE['driver'] = None
@@ -1474,6 +1474,18 @@ def _erro_indica_navegador_fechado(exc):
         atual = getattr(atual, '__cause__', None) or getattr(atual, '__context__', None)
 
     return False
+
+
+def _classificar_grave(exc):
+    """Classifica uma excecao "grave" do emit em dois niveis para o run_batch_loop:
+
+    - `batch_engine.GRAVE_FATAL` quando indica navegador/sessao morta
+      (`_erro_indica_navegador_fechado`): repetir os proximos itens com o mesmo
+      driver morto e' inutil, entao o lote automatico para (RESIL-04).
+    - `True` (grave "comum", ex.: timeout de download): no lote automatico vira
+      falha por-item e o loop segue; no manual continua abortando (RESIL-01/03).
+    """
+    return batch_engine.GRAVE_FATAL if _erro_indica_navegador_fechado(exc) else True
 
 
 def _automatizar_fgts(contexto, driver, wait, certidao, detectar_impedimento=False):
