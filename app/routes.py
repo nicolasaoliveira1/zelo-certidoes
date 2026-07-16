@@ -80,9 +80,13 @@ from app.models import (
     get_a_vencer_dias,
 )
 from app.utils import get_config_value as _get_config_value, to_bool as _to_bool, utcnow_naive
-from app.services import auditoria, batch_engine, certidao_service, diagnostics, preflight
+from app.services import agendador, auditoria, batch_engine, certidao_service, diagnostics, preflight
 from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
+from app.services.snapshot_service import (
+    classificar_status_certidao as _classificar_status_certidao,
+    garantir_snapshot_diario as _garantir_snapshot_diario,
+)
 from app.services.health import run_health_checks
 from app.auth import requer_papel
 from flask_login import current_user
@@ -521,6 +525,118 @@ _register_batch_routes('/municipal', 'municipal_lote', {
 })
 
 
+# --- Fluxos automatizáveis do agendador (spec 02) --------------------------
+# Reusam o MESMO run_batch_loop dos lotes manuais, mas rodam SÍNCRONO (no thread
+# do agendador) e alimentados pela fila durável. Nenhum estado de lote paralelo:
+# os locks/states por tipo são os mesmos de batch_state. `wrap_emit` (vindo do
+# job) envolve o emit real para transicionar cada TarefaEmissao.
+
+def _rodar_lote_agendado(app, ids, *, wrap_emit, execution_id, lock, state,
+                         real_emit, nome_lote, **loop_kwargs):
+    with lock:
+        # Serialização com o lote manual: se já há um em andamento/pausado deste
+        # tipo, o agendador não clobbera o estado — pula e roda no próximo ciclo
+        # (edge case da spec: "respeitar o lock global do tipo").
+        if state.get('status') in ('running', 'paused'):
+            log_event('agendador_lote_pulado_em_andamento', lote=nome_lote,
+                      execution_id=execution_id)
+            return
+        batch_engine.reset_batch_state(state)
+        state.update(status='running', ids=list(ids), total=len(ids),
+                     started_at=utcnow_naive(), execution_id=execution_id)
+    _registrar_execucao_lote(nome_lote, 'default', len(ids), execution_id)
+    batch_engine.run_batch_loop(
+        app, lock=lock, state=state, emit_fn=wrap_emit(real_emit),
+        nome_lote=nome_lote, **loop_kwargs)
+
+
+def _fluxo_fgts_calc_ids(app):
+    return _calc_fgts_targets_by_scope(None, scope='default')['ids']
+
+
+def _fluxo_fgts_rodar(app, ids, *, wrap_emit, execution_id):
+    _rodar_lote_agendado(
+        app, ids, wrap_emit=wrap_emit, execution_id=execution_id,
+        lock=FGTS_BATCH_LOCK, state=FGTS_BATCH_STATE,
+        real_emit=lambda cid, drv, eid: _emitir_fgts_certidao(cid, driver=drv, execution_id=eid),
+        nome_lote='FGTS', curto='FGTS', tag='FGTS-LOTE',
+        event_prefix='fgts_batch_worker', create_driver=_criar_driver_chrome,
+        on_finish=_registrar_desfecho_lote)
+
+
+def _fluxo_rs_habilitado():
+    return _to_bool(_get_config_value('RS_ALTCHA_AUTOSOLVE_ENABLED', False), False)
+
+
+def _fluxo_rs_calc_ids(app):
+    # Sem o solver ALTCHA a emissão RS não é automatizável — não enfileira nada
+    # (mesma precondição do lote manual), evitando tarefas que só falhariam.
+    if not _fluxo_rs_habilitado():
+        return []
+    return _calc_estadual_rs_targets_by_scope(None, scope='default')['ids']
+
+
+def _fluxo_rs_rodar(app, ids, *, wrap_emit, execution_id):
+    def _on_setup(_app):
+        return _ativar_politica_autoselect_rs_temporaria()
+
+    def _on_teardown(rs_policy_ativa):
+        if rs_policy_ativa:
+            _desativar_politica_autoselect_rs_temporaria()
+
+    _rodar_lote_agendado(
+        app, ids, wrap_emit=wrap_emit, execution_id=execution_id,
+        lock=RS_BATCH_LOCK, state=RS_BATCH_STATE,
+        real_emit=lambda cid, drv, eid: _emitir_estadual_rs_certidao(
+            cid, driver=drv, usar_2captcha=True, execution_id=eid),
+        nome_lote='Estadual RS', curto='RS', tag='ESTADUAL-RS-LOTE',
+        event_prefix='rs_batch_worker',
+        create_driver=lambda: _criar_driver_chrome(anonimo=False, usar_perfil=True),
+        eager_driver=True, on_setup=_on_setup, on_teardown=_on_teardown,
+        on_finish=_registrar_desfecho_lote)
+
+
+def _fluxo_municipal_calc_ids(app):
+    dados = batch_engine.calc_targets(
+        None,
+        extra_filter=lambda q: q.filter(Certidao.tipo == TipoCertidao.MUNICIPAL),
+        scope='default', tipo=TipoCertidao.MUNICIPAL)
+    ids = []
+    for cid in dados['ids']:
+        cert = db.session.get(Certidao, cid)
+        if cert and cert.empresa and _municipal_batch_suportado(cert.empresa.cidade or ''):
+            ids.append(cid)
+    return ids
+
+
+def _fluxo_municipal_rodar(app, ids, *, wrap_emit, execution_id):
+    _rodar_lote_agendado(
+        app, ids, wrap_emit=wrap_emit, execution_id=execution_id,
+        lock=MUNICIPAL_BATCH_LOCK, state=MUNICIPAL_BATCH_STATE,
+        real_emit=lambda cid, drv, eid: _emitir_municipal_certidao_lote(
+            cid, driver=drv, execution_id=eid),
+        nome_lote='Municipal', curto='Municipal', tag=None,
+        event_prefix='municipal_batch_worker', create_driver=_criar_driver_chrome,
+        on_finish=_registrar_desfecho_lote)
+
+
+def _registrar_fluxos_agendador():
+    """Registra os fluxos automatizáveis no agendador (idempotente). Chamado no
+    import de routes; exposto para os testes re-registrarem se necessário."""
+    agendador.registrar_fluxo(TipoCertidao.FGTS, {
+        'tipo': TipoCertidao.FGTS,
+        'calc_ids': _fluxo_fgts_calc_ids, 'rodar_lote': _fluxo_fgts_rodar})
+    agendador.registrar_fluxo(TipoCertidao.ESTADUAL, {
+        'tipo': TipoCertidao.ESTADUAL,
+        'calc_ids': _fluxo_rs_calc_ids, 'rodar_lote': _fluxo_rs_rodar})
+    agendador.registrar_fluxo(TipoCertidao.MUNICIPAL, {
+        'tipo': TipoCertidao.MUNICIPAL,
+        'calc_ids': _fluxo_municipal_calc_ids, 'rodar_lote': _fluxo_municipal_rodar})
+
+
+_registrar_fluxos_agendador()
+
+
 @bp.route('/health')
 def health():
     # liveness publico e minimo: nao vaza detalhes de infra (AUTH-07.2)
@@ -549,6 +665,24 @@ def diagnostico_eventos():
         'status': 'ok',
         'eventos': diagnostics.eventos_para_painel(limite=100),
         'alertas': diagnostics.alertas_ativos(),
+    })
+
+
+@bp.route('/diagnostico/2captcha')
+@requer_papel('admin')
+def diagnostico_2captcha():
+    """Saldo atual da conta 2captcha para o painel de diagnóstico. Best-effort:
+    `saldo` vem None se a chave não está configurada ou a consulta falha."""
+    from app.captcha_solver import consultar_saldo
+    tem_chave = bool((current_app.config.get('CAPTCHA_2_API_KEY') or '').strip())
+    saldo = consultar_saldo(current_app.config) if tem_chave else None
+    minimo = current_app.config.get('CAPTCHA_2_SALDO_MINIMO', 0)
+    return jsonify({
+        'status': 'ok',
+        'configurado': tem_chave,
+        'saldo': saldo,
+        'minimo': minimo,
+        'baixo': (saldo is not None and saldo < minimo),
     })
 
 
@@ -1060,49 +1194,6 @@ _LOTE_STATUS_LABEL = {
 }
 
 
-def _classificar_status_certidao(certidao, hoje):
-    """Classifica uma certidão em uma das 5 categorias de status usadas nos
-    relatórios/snapshot: pendentes | sem_data | vencidas | a_vencer | validas."""
-    if certidao.status_especial == StatusEspecial.PENDENTE:
-        return 'pendentes'
-    if not certidao.data_validade:
-        return 'sem_data'
-    if (certidao.data_validade - hoje).days < 0:
-        return 'vencidas'
-    if certidao.status == 'amarelo':
-        return 'a_vencer'
-    return 'validas'
-
-
-_ULTIMO_SNAPSHOT_DIA = None
-
-
-def _garantir_snapshot_diario():
-    """Grava (uma vez por dia, lazy) a foto das contagens por tipo × status.
-    Sem scheduler: dispara na 1ª visita do dia às páginas que a chamam.
-    Best-effort — uma falha nunca deve quebrar a página."""
-    global _ULTIMO_SNAPSHOT_DIA
-    hoje = date.today()
-    if _ULTIMO_SNAPSHOT_DIA == hoje:
-        return
-    try:
-        if db.session.query(SnapshotCertidao.id).filter_by(data=hoje).first():
-            _ULTIMO_SNAPSHOT_DIA = hoje
-            return
-        contagens = {}
-        for certidao in Certidao.query.all():
-            chave = (certidao.tipo.value, _classificar_status_certidao(certidao, hoje))
-            contagens[chave] = contagens.get(chave, 0) + 1
-        for (tipo_valor, status_key), qtd in contagens.items():
-            db.session.add(SnapshotCertidao(
-                data=hoje, tipo=tipo_valor, status=status_key, quantidade=qtd))
-        db.session.commit()
-        _ULTIMO_SNAPSHOT_DIA = hoje
-    except Exception as e:
-        db.session.rollback()
-        log_event('snapshot_certidao_falhou', level='WARNING', error=str(e))
-
-
 def _humanizar_desde(dt, agora):
     """Descreve há quanto tempo `dt` ocorreu em relação a `agora` (ambos naive,
     horário local). Retorna string curta pt-BR: "agora", "há 3 h", "ontem",
@@ -1340,10 +1431,28 @@ def configuracoes():
         caminho_rede_raw = (request.form.get('caminho_rede') or '').strip()
         config.caminho_rede = caminho_rede_raw or None
 
+        # Agendador de emissao proativa (spec 02): hora local 0-23 + liga/desliga.
+        # So processa quando o formulario traz a secao do agendador (evita mexer
+        # no estado num POST parcial que nao inclui esses campos).
+        if 'agendador_hora' in request.form:
+            hora_raw = (request.form.get('agendador_hora') or '').strip()
+            try:
+                hora = int(hora_raw)
+            except (TypeError, ValueError):
+                flash('Informe uma hora inteira entre 0 e 23 para o agendador.', 'warning')
+                return redirect(url_for('main.configuracoes'))
+            if not 0 <= hora <= 23:
+                flash('O horario do agendador deve ficar entre 0 e 23.', 'warning')
+                return redirect(url_for('main.configuracoes'))
+            config.agendador_hora = hora
+            config.agendador_ativo = _to_bool(request.form.get('agendador_ativo'))
+
         try:
             db.session.commit()
             flash('Configuracoes atualizadas com sucesso.', 'success')
             auditoria.registrar('config.editar')
+            # reprograma o scheduler sem reiniciar (no-op se nao estiver rodando)
+            agendador.reprogramar(_current_app_object())
         except Exception as exc:
             db.session.rollback()
             flash(f'Erro ao salvar configuracoes: {exc}', 'danger')
@@ -1363,6 +1472,8 @@ def configuracoes():
         tipos_vencer=_TIPOS_VENCER,
         caminho_rede=(config.caminho_rede if config else None) or '',
         caminho_rede_efetivo=file_manager.get_caminho_rede(),
+        agendador_ativo=(config.agendador_ativo if config else True),
+        agendador_hora=(config.agendador_hora if config else 3),
     )
 
 

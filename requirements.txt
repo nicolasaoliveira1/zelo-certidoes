@@ -17,3 +17,6 @@ setuptools==82.0.1
 Flask-Login==0.6.3
 Flask-WTF==1.2.2
 WTForms==3.2.2
+# Agendador de emissao proativa (spec 02) — BackgroundScheduler in-process, sem broker.
+# Puxa tzlocal como dependencia transitiva.
+APScheduler==3.11.3
