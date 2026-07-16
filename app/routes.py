@@ -668,6 +668,24 @@ def diagnostico_eventos():
     })
 
 
+@bp.route('/diagnostico/2captcha')
+@requer_papel('admin')
+def diagnostico_2captcha():
+    """Saldo atual da conta 2captcha para o painel de diagnóstico. Best-effort:
+    `saldo` vem None se a chave não está configurada ou a consulta falha."""
+    from app.captcha_solver import consultar_saldo
+    tem_chave = bool((current_app.config.get('CAPTCHA_2_API_KEY') or '').strip())
+    saldo = consultar_saldo(current_app.config) if tem_chave else None
+    minimo = current_app.config.get('CAPTCHA_2_SALDO_MINIMO', 0)
+    return jsonify({
+        'status': 'ok',
+        'configurado': tem_chave,
+        'saldo': saldo,
+        'minimo': minimo,
+        'baixo': (saldo is not None and saldo < minimo),
+    })
+
+
 @bp.route('/fgts/emitir_unico', methods=['POST'])
 @requer_papel('operador')
 def fgts_emitir_unico():

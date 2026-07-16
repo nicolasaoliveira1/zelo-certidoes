@@ -14,6 +14,21 @@
 
 <div id="diag-alertas" class="mb-3"></div>
 
+<div class="row g-3 mb-3">
+    <div class="col-12 col-sm-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body d-flex align-items-center justify-content-between gap-3">
+                <div>
+                    <div class="text-uppercase text-muted small fw-semibold">Saldo 2captcha</div>
+                    <div id="captcha-saldo" class="fs-3 fw-semibold" style="font-family: var(--zelo-font-mono);">—</div>
+                </div>
+                <span id="captcha-badge" class="badge rounded-pill text-bg-secondary">…</span>
+            </div>
+            <div class="card-footer small text-muted" id="captcha-nota">Consultando saldo…</div>
+        </div>
+    </div>
+</div>
+
 <div class="card">
     <div class="card-header fw-semibold">Últimos erros e avisos</div>
     <div class="table-responsive">
@@ -105,6 +120,50 @@
         btn.addEventListener('click', carregar);
         carregar();
         setInterval(carregar, 15000);
+    })();
+
+    // Saldo do 2captcha (consulta best-effort; nao bloqueia o carregamento da pagina)
+    (function () {
+        const saldoEl = document.getElementById('captcha-saldo');
+        const badgeEl = document.getElementById('captcha-badge');
+        const notaEl = document.getElementById('captcha-nota');
+
+        function fmtUSD(v) {
+            try { return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'USD' }); }
+            catch (e) { return '$' + Number(v).toFixed(2); }
+        }
+
+        function render(d) {
+            if (!d.configurado) {
+                saldoEl.textContent = '—';
+                badgeEl.className = 'badge rounded-pill text-bg-secondary';
+                badgeEl.textContent = 'não configurado';
+                notaEl.textContent = 'Chave CAPTCHA_2_API_KEY não configurada no ambiente.';
+                return;
+            }
+            if (d.saldo === null || d.saldo === undefined) {
+                saldoEl.textContent = '—';
+                badgeEl.className = 'badge rounded-pill text-bg-secondary';
+                badgeEl.textContent = 'indisponível';
+                notaEl.textContent = 'Não foi possível consultar o saldo (rede ou API do 2captcha).';
+                return;
+            }
+            saldoEl.textContent = fmtUSD(d.saldo);
+            if (d.baixo) {
+                badgeEl.className = 'badge rounded-pill text-bg-warning';
+                badgeEl.textContent = 'saldo baixo';
+                notaEl.textContent = 'Abaixo do mínimo de alerta (' + fmtUSD(d.minimo) + '). Recarregue os créditos.';
+            } else {
+                badgeEl.className = 'badge rounded-pill text-bg-success';
+                badgeEl.textContent = 'ok';
+                notaEl.textContent = 'Mínimo de alerta: ' + fmtUSD(d.minimo) + '.';
+            }
+        }
+
+        fetch('{{ url_for("main.diagnostico_2captcha") }}')
+            .then(r => r.json())
+            .then(render)
+            .catch(() => { notaEl.textContent = 'Falha ao consultar o saldo.'; });
     })();
 </script>
 {% endblock %}
