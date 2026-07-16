@@ -41,6 +41,17 @@ def test_salvar_reprograma_o_scheduler(client, app, monkeypatch):
     assert chamado.get('sim') is True
 
 
+def test_reprogramar_falho_nao_impede_salvar(client, app, monkeypatch):
+    def _boom(a):
+        raise RuntimeError('scheduler down')
+    monkeypatch.setattr(agendador, 'reprogramar', _boom)
+    resp = _post(client, agendador_hora='7')
+    assert resp.status_code == 200
+    with app.app_context():
+        cfg = db.session.get(ConfiguracaoSistema, 1)
+        assert cfg.agendador_hora == 7  # salvou apesar do reprogramar falhar
+
+
 def test_configuracoes_get_mostra_campos_agendador(client):
     resp = client.get('/configuracoes')
     assert resp.status_code == 200

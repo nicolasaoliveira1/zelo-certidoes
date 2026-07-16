@@ -68,7 +68,11 @@ def create_app(config_class=Config):
     # quando AGENDADOR_ENABLED=false (testes). Os fluxos ja foram registrados no
     # import de routes acima.
     from app.services import agendador
-    agendador.init(app)
+    # best-effort: o agendador nunca deve derrubar o boot da aplicação
+    try:
+        agendador.init(app)
+    except Exception as e:
+        log_event('agendador_init_falhou', level='ERROR', error=str(e))
 
     # persistencia do historico de diagnostico (thread escritora + prune inicial)
     if app.config.get('DIAGNOSTICO_PERSISTIR', True):

@@ -533,6 +533,12 @@ _register_batch_routes('/municipal', 'municipal_lote', {
 
 def _rodar_lote_agendado(app, ids, *, wrap_emit, execution_id, lock, state,
                          real_emit, nome_lote, **loop_kwargs):
+    # Não concorre com uma emissão individual em curso (mesma guarda do lote
+    # manual): dois drivers podem disputar o mesmo perfil Chrome (ex.: RS).
+    if emissao_individual_ativa():
+        log_event('agendador_lote_pulado_emissao_individual', lote=nome_lote,
+                  execution_id=execution_id)
+        return
     with lock:
         # Serialização com o lote manual: se já há um em andamento/pausado deste
         # tipo, o agendador não clobbera o estado — pula e roda no próximo ciclo
@@ -601,12 +607,14 @@ def _fluxo_municipal_calc_ids(app):
         None,
         extra_filter=lambda q: q.filter(Certidao.tipo == TipoCertidao.MUNICIPAL),
         scope='default', tipo=TipoCertidao.MUNICIPAL)
-    ids = []
-    for cid in dados['ids']:
-        cert = db.session.get(Certidao, cid)
-        if cert and cert.empresa and _municipal_batch_suportado(cert.empresa.cidade or ''):
-            ids.append(cid)
-    return ids
+    if not dados['ids']:
+        return []
+    # Uma query só (id, cidade) para filtrar as cidades suportadas — sem N+1.
+    rows = (db.session.query(Certidao.id, Empresa.cidade)
+            .join(Empresa, Empresa.id == Certidao.empresa_id)
+            .filter(Certidao.id.in_(dados['ids']))
+            .all())
+    return [cid for cid, cidade in rows if _municipal_batch_suportado(cidade or '')]
 
 
 def _fluxo_municipal_rodar(app, ids, *, wrap_emit, execution_id):
@@ -1447,16 +1455,24 @@ def configuracoes():
             config.agendador_hora = hora
             config.agendador_ativo = _to_bool(request.form.get('agendador_ativo'))
 
+        salvou = False
         try:
             db.session.commit()
+            salvou = True
             flash('Configuracoes atualizadas com sucesso.', 'success')
             auditoria.registrar('config.editar')
-            # reprograma o scheduler sem reiniciar (no-op se nao estiver rodando)
-            agendador.reprogramar(_current_app_object())
         except Exception as exc:
             db.session.rollback()
             flash(f'Erro ao salvar configuracoes: {exc}', 'danger')
             auditoria.registrar('config.editar', resultado='erro', detalhe=str(exc))
+
+        # reprograma o scheduler sem reiniciar — best-effort e FORA do try do
+        # commit: uma falha aqui não deve reportar "erro ao salvar" (já salvou).
+        if salvou:
+            try:
+                agendador.reprogramar(_current_app_object())
+            except Exception as exc:
+                log_event('agendador_reprogramar_falhou', level='WARNING', error=str(exc))
 
         return redirect(url_for('main.configuracoes'))
 

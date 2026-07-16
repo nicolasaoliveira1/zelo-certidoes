@@ -76,7 +76,13 @@ def init(app):
         if _scheduler is not None:
             return _scheduler
         with app.app_context():
-            fila_emissao.reconciliar_orfas()
+            # best-effort: um drift de schema (tabela ausente) não pode derrubar
+            # o boot por causa da reconciliação.
+            try:
+                fila_emissao.reconciliar_orfas()
+            except Exception as exc:
+                log_event('agendador_reconciliar_boot_falhou', level='ERROR',
+                          error=str(exc))
         _scheduler = BackgroundScheduler(daemon=True)
         _agendar_jobs(app)
         _scheduler.start()

@@ -44,6 +44,20 @@ def test_rodar_lote_pula_se_lote_manual_em_andamento(app, ids, fluxos_registrado
         batch_engine.reset_batch_state(FGTS_BATCH_STATE)
 
 
+def test_rodar_lote_pula_se_emissao_individual_ativa(app, ids, fluxos_registrados, monkeypatch):
+    """Não concorre com uma emissão individual em curso (guarda do lote manual)."""
+    monkeypatch.setattr(routes, 'emissao_individual_ativa', lambda: True)
+
+    def _emit_proibido(cid, drv, eid):
+        raise AssertionError('nao deveria emitir com emissao individual ativa')
+
+    with app.app_context():
+        fluxos_registrados['FGTS']['rodar_lote'](
+            app, [ids['fgts']],
+            wrap_emit=lambda real: _emit_proibido, execution_id='x')
+    # chegou aqui sem raise => o guard pulou o lote
+
+
 def test_fgts_calc_ids_traz_a_vencer(app, ids, fluxos_registrados):
     with app.app_context():
         fgts = db.session.get(Certidao, ids['fgts'])
