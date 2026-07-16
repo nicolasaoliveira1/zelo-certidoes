@@ -10,7 +10,7 @@ import sys
 os.environ.setdefault('SECRET_KEY', 'test')
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.services.batch_engine import run_batch_loop, batch_state_defaults
+from app.services.batch_engine import run_batch_loop, batch_state_defaults, GRAVE_FATAL
 
 
 class FakeCtx:
@@ -158,6 +158,47 @@ def test_grave_error_stops():
     print('ok test_grave_error_stops')
 
 
+def test_grave_tolerado_continua_no_modo_agendador():
+    # RESIL-01: com parar_em_grave=False (caminho do agendador), um grave "comum"
+    # (ex.: timeout de download) NAO aborta o lote: vira falha e o loop segue.
+    state = make_state([1, 2, 3])
+    emit = make_emit([(True, False, None), (False, True, 'timeout'), (True, False, None)])
+    run(state, emit, parar_em_grave=False)
+    assert state['status'] == 'completed', state['status']
+    assert state['success'] == 2, state['success']
+    assert state['falhas'] == 1, state['falhas']       # item grave contado como falha
+    assert state['index'] == 3, state['index']         # todos os itens tentados (RESIL-01.3)
+    assert emit.calls['n'] == 3
+    print('ok test_grave_tolerado_continua_no_modo_agendador')
+
+
+def test_grave_fatal_para_mesmo_no_modo_tolerante():
+    # RESIL-04: GRAVE_FATAL (driver/sessao morta) para o lote MESMO com
+    # parar_em_grave=False; os itens seguintes nao sao tentados.
+    state = make_state([1, 2, 3])
+    emit = make_emit([(True, False, None), (False, GRAVE_FATAL, 'chrome morto')])
+    run(state, emit, parar_em_grave=False)
+    assert state['status'] == 'error', state['status']
+    assert state['message'] == 'chrome morto', state['message']
+    assert state['success'] == 1
+    assert state['index'] == 1                          # nao avancou no item fatal
+    assert emit.calls['n'] == 2                          # 3o item nunca emitido
+    print('ok test_grave_fatal_para_mesmo_no_modo_tolerante')
+
+
+def test_grave_fatal_para_no_lote_manual():
+    # RESIL-04: sob o default parar_em_grave=True (lote manual), GRAVE_FATAL
+    # tambem para — pela 1a condicao (grave == GRAVE_FATAL), nao so pelo flag.
+    # (grave comum no manual ja e' coberto por test_grave_error_stops.)
+    state = make_state([1, 2, 3])
+    emit = make_emit([(True, False, None), (False, GRAVE_FATAL, 'chrome morto')])
+    run(state, emit)  # default True
+    assert state['status'] == 'error', state['status']
+    assert state['index'] == 1
+    assert emit.calls['n'] == 2
+    print('ok test_grave_fatal_para_no_lote_manual')
+
+
 def test_stop_before_processing():
     state = make_state([1, 2, 3])
     state['stop_requested'] = True
@@ -279,6 +320,9 @@ def main():
         test_pendente_result_nao_e_sucesso_nem_falha,
         test_pendente_com_retorno_false_nao_conta_falha,
         test_grave_error_stops,
+        test_grave_tolerado_continua_no_modo_agendador,
+        test_grave_fatal_para_mesmo_no_modo_tolerante,
+        test_grave_fatal_para_no_lote_manual,
         test_stop_before_processing,
         test_pause_before_processing,
         test_stop_during_emit,

@@ -551,9 +551,14 @@ def _rodar_lote_agendado(app, ids, *, wrap_emit, execution_id, lock, state,
         state.update(status='running', ids=list(ids), total=len(ids),
                      started_at=utcnow_naive(), execution_id=execution_id)
     _registrar_execucao_lote(nome_lote, 'default', len(ids), execution_id)
+    # Caminho do agendador: tolerante a grave por-item (RESIL-01). Um grave
+    # "comum" (ex.: timeout de download) NAO aborta o lote — vira falha por-item
+    # (fila TarefaEmissao / retry) e o loop segue. GRAVE_FATAL (driver morto)
+    # ainda para o lote. O lote manual (chamadas diretas em routes) mantem o
+    # default parar_em_grave=True.
     batch_engine.run_batch_loop(
         app, lock=lock, state=state, emit_fn=wrap_emit(real_emit),
-        nome_lote=nome_lote, **loop_kwargs)
+        nome_lote=nome_lote, parar_em_grave=False, **loop_kwargs)
 
 
 def _fluxo_fgts_calc_ids(app):

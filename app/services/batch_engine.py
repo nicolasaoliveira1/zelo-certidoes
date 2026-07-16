@@ -8,6 +8,13 @@ from app.utils import utcnow_naive
 from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
 
+# 3o estado do campo `grave` retornado pelo emit_fn: alem de False (ok/falha
+# comum) e True (grave comum), GRAVE_FATAL sinaliza browser/sessao morta. E'
+# truthy de proposito (todos os `if grave:` existentes seguem validos); so o
+# run_batch_loop distingue os tres casos. O emit produz esse valor via
+# emissao._classificar_grave; o loop para SEMPRE nele, ate no modo tolerante.
+GRAVE_FATAL = 'fatal'
+
 
 def batch_state_defaults():
     return {
@@ -132,6 +139,7 @@ def run_batch_loop(
     on_teardown=None,
     recover_fn=None,
     on_finish=None,
+    parar_em_grave=True,
 ):
     """Loop generico de lote compartilhado por FGTS, Estadual RS e Municipal.
 
@@ -150,6 +158,9 @@ def run_batch_loop(
         (ex.: recriar driver do FGTS apos falha de carregamento).
       on_finish(state): hook opcional no finally (contexto de app ativo) para
         gravar o desfecho do lote; best-effort, excecoes sao engolidas.
+      parar_em_grave: True (default, lote manual) aborta o lote em qualquer
+        `grave`. False (caminho do agendador) tolera grave "comum" (vira falha
+        por-item e continua); GRAVE_FATAL para o lote independente deste flag.
     """
     with app.app_context():
         driver = None
@@ -223,13 +234,30 @@ def run_batch_loop(
                         )
                         break
 
-                    if grave:
+                    if grave == GRAVE_FATAL or (grave and parar_em_grave):
+                        # Para o lote: no manual, qualquer grave para (default);
+                        # GRAVE_FATAL (driver/sessao morta) para SEMPRE, mesmo no
+                        # modo tolerante do agendador (RESIL-03/RESIL-04).
                         state['status'] = 'error'
                         state['message'] = mensagem or f'Erro grave no lote {nome_lote}.'
                         append_batch_message(
                             state, state['message'], level='error', certidao_id=certidao_id
                         )
                         break
+
+                    if grave:
+                        # Modo tolerante (agendador): um grave "comum" (ex.: timeout
+                        # de download) NAO aborta o lote — vira falha por-item e o
+                        # loop segue para o proximo (RESIL-01).
+                        state['falhas'] += 1
+                        append_batch_message(
+                            state,
+                            f"{curto} falhou (grave tolerado) ID={certidao_id}: {mensagem}",
+                            level='warning',
+                            certidao_id=certidao_id,
+                        )
+                        state['index'] += 1
+                        continue
 
                     # A emissão sinaliza um desfecho "pendente" (positiva, sem
                     # negativa, impedimento, CNPJ não cadastrado...) chamando

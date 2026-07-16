@@ -122,3 +122,19 @@ def test_pick_changed_download_mais_recente(monkeypatch):
     }
     monkeypatch.setattr(emissao, '_snapshot_downloads_pdf', lambda: agora)
     assert emissao._pick_changed_download_pdf(antes) == '/dl/b.pdf'
+
+
+def test_classificar_grave_browser_closed_e_fatal():
+    # RESIL-04: excecao que indica navegador/sessao morta vira GRAVE_FATAL, para
+    # que o lote automatico pare em vez de repetir os proximos itens com o driver
+    # morto. (_erro_indica_navegador_fechado casa pelo marcador de texto.)
+    from app.services.batch_engine import GRAVE_FATAL
+    exc = Exception('chrome not reachable')
+    assert emissao._classificar_grave(exc) == GRAVE_FATAL
+
+
+def test_classificar_grave_comum_e_true():
+    # RESIL-01: um erro grave "comum" (nao relacionado a driver morto) continua
+    # sendo True — no lote automatico vira falha por-item e o loop segue.
+    exc = ValueError('timeout aguardando download')
+    assert emissao._classificar_grave(exc) is True

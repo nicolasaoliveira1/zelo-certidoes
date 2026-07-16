@@ -58,6 +58,37 @@ def test_rodar_lote_pula_se_emissao_individual_ativa(app, ids, fluxos_registrado
     # chegou aqui sem raise => o guard pulou o lote
 
 
+def test_lote_agendado_continua_apos_item_grave(app, ids, fluxos_registrados, monkeypatch):
+    """RESIL-01 (end-to-end): no caminho do agendador (_rodar_lote_agendado ->
+    run_batch_loop com parar_em_grave=False), um item grave "comum" NAO aborta o
+    lote — os itens seguintes sao emitidos e o lote conclui como 'completed'."""
+    class _FakeDriver:
+        def quit(self):
+            pass
+
+    # evita lancar Chrome real; o emit fake ignora o driver de qualquer forma
+    monkeypatch.setattr(routes, '_criar_driver_chrome', lambda *a, **k: _FakeDriver())
+
+    seq = iter([(True, False, None), (False, True, 'timeout'), (True, False, None)])
+
+    def _fake_emit(cid, drv, eid):
+        return next(seq)
+
+    try:
+        batch_engine.reset_batch_state(FGTS_BATCH_STATE)
+        with app.app_context():
+            fluxos_registrados['FGTS']['rodar_lote'](
+                app, [1, 2, 3],
+                wrap_emit=lambda real: _fake_emit, execution_id='x')
+        # o item 2 (grave) virou falha e o loop seguiu: todos os 3 tentados
+        assert FGTS_BATCH_STATE['status'] == 'completed', FGTS_BATCH_STATE['status']
+        assert FGTS_BATCH_STATE['success'] == 2, FGTS_BATCH_STATE['success']
+        assert FGTS_BATCH_STATE['falhas'] == 1, FGTS_BATCH_STATE['falhas']
+        assert FGTS_BATCH_STATE['index'] == 3, FGTS_BATCH_STATE['index']
+    finally:
+        batch_engine.reset_batch_state(FGTS_BATCH_STATE)
+
+
 def test_fgts_calc_ids_traz_a_vencer(app, ids, fluxos_registrados):
     with app.app_context():
         fgts = db.session.get(Certidao, ids['fgts'])
