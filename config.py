@@ -86,7 +86,7 @@ class Config:
     CAPTCHA_2_SERVER = os.environ.get('CAPTCHA_2_SERVER') or '2captcha.com'
     # Saldo minimo (USD) abaixo do qual o agendador avisa no painel de
     # diagnostico que os creditos do 2captcha estao acabando (spec 02, SCHED-08).
-    CAPTCHA_2_SALDO_MINIMO = _env_float('CAPTCHA_2_SALDO_MINIMO', 2.0)
+    CAPTCHA_2_SALDO_MINIMO = _env_float('CAPTCHA_2_SALDO_MINIMO', 1.0)
     # Liga o agendador de emissao proativa no boot (spec 02). Desligado nos testes.
     AGENDADOR_ENABLED = _env_bool('AGENDADOR_ENABLED', True)
 
