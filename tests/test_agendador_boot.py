@@ -27,9 +27,11 @@ def test_init_nao_inicia_quando_flag_desligada(app, monkeypatch):
 
 
 def test_init_reloader_pai_nao_inicia(app, monkeypatch):
-    # app.debug True (.env FLASK_DEBUG=1) + WERKZEUG_RUN_MAIN ausente = processo
-    # pai do reloader: nao deve agendar (o filho o fara)
+    # reloader ATIVO (debug on) + WERKZEUG_RUN_MAIN ausente = processo pai do
+    # reloader: nao deve agendar (o filho o fara). Forca DEBUG no config para nao
+    # depender do ambiente (o .env local tem FLASK_DEBUG=1; o CI nao tem .env).
     monkeypatch.delenv('WERKZEUG_RUN_MAIN', raising=False)
+    monkeypatch.setitem(app.config, 'DEBUG', True)
     monkeypatch.setitem(app.config, 'AGENDADOR_ENABLED', True)
     agendador.shutdown()
     assert app.debug is True

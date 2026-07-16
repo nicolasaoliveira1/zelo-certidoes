@@ -20,6 +20,9 @@ os.environ.setdefault('RS_ALTCHA_AUTOSOLVE_ENABLED', 'false')
 # Nao sobe o agendador (BackgroundScheduler) nos testes; os testes do agendador
 # ligam explicitamente via app.config quando precisam.
 os.environ.setdefault('AGENDADOR_ENABLED', 'false')
+# Sem chave 2captcha por padrao nos testes: consultar_saldo vira no-op (None) e
+# nenhum teste bate na API real. Os testes que precisam mockam/injetam a chave.
+os.environ.setdefault('CAPTCHA_2_API_KEY', '')
 # CSRF desligado no ambiente de teste (o client nao envia token); a imposicao de
 # CSRF e provada num teste dedicado que religa a flag (tests/test_csrf.py).
 os.environ.setdefault('WTF_CSRF_ENABLED', 'false')
