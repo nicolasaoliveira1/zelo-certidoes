@@ -132,6 +132,38 @@
                         </div>
                     </div>
 
+                    <div class="col-12"><hr class="my-1"></div>
+
+                    <div class="col-12">
+                        <h6 class="fw-bold mb-1">Notificações por e-mail</h6>
+                        <label class="form-label fw-semibold" for="notif-destinatarios">Destinatários</label>
+                        <textarea
+                            class="form-control"
+                            id="notif-destinatarios"
+                            name="notif_destinatarios"
+                            rows="2"
+                            placeholder="fulano@empresa.com, ciclano@empresa.com"
+                        >{{ notif_destinatarios }}</textarea>
+                        <div class="form-text mb-2">
+                            E-mails separados por vírgula, ponto e vírgula ou quebra de linha.
+                            As credenciais SMTP ficam no ambiente (arquivo <code>.env</code>).
+                        </div>
+                        <label class="form-label fw-semibold" for="notif-cadencia">Cadência do digest</label>
+                        <select
+                            class="form-select"
+                            id="notif-cadencia"
+                            name="notif_cadencia"
+                            style="max-width: 12rem;"
+                        >
+                            <option value="semanal" {% if notif_cadencia == 'semanal' %}selected{% endif %}>Semanal</option>
+                            <option value="diaria" {% if notif_cadencia == 'diaria' %}selected{% endif %}>Diária</option>
+                        </select>
+                        <div class="form-text">
+                            Frequência do resumo de vencimentos (a vencer / vencidas / pendentes).
+                            Alertas de falha e de saldo baixo são enviados assim que detectados.
+                        </div>
+                    </div>
+
                     <div class="col-12">
                         <button type="submit" class="btn btn-primary">Salvar</button>
                     </div>
