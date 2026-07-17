@@ -201,9 +201,8 @@ def enviar_alertas(app):
     saldo = captcha_solver.consultar_saldo(app.config)
     minimo = app.config.get('CAPTCHA_2_SALDO_MINIMO', 0)
     if saldo is not None and saldo < minimo:
-        # preserva o aviso no painel de diagnostico (comportamento da spec 02)
-        log_event('agendador_saldo_2captcha_baixo', level='WARNING',
-                  saldo=saldo, minimo=minimo)
+        # o aviso no painel de diagnostico e responsabilidade do agendador
+        # (_avisar_saldo_baixo, spec 02); aqui so cuidamos do push por e-mail.
         assunto = '[Certidoes] Alerta: saldo 2captcha baixo'
         corpo = '\n'.join([
             f'Saldo atual do 2captcha: {saldo:.2f} USD',
