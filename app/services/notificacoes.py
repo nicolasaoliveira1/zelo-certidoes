@@ -9,9 +9,9 @@ Este modulo NAO importa `agendador` (evita ciclo): os jobs e que chamam este.
 """
 from datetime import date, datetime, timedelta
 
-from app import db
+from app import captcha_solver, db
 from app.models import Certidao, ConfiguracaoSistema, NotificacaoLog
-from app.services import email_sender
+from app.services import diagnostics, email_sender
 from app.services.execution_logger import log_event
 from app.services.snapshot_service import classificar_status_certidao
 
@@ -150,3 +150,68 @@ def enviar_digest_se_devido(app):
     if enviado:
         _registrar_envio('digest', 'digest', detalhe=str(resumo))
     return enviado
+
+
+# --- alertas (falha recorrente + saldo 2captcha) ---------------------------
+
+def _enviar_alerta(app, destinatarios, chave, tipo, assunto, corpo, janela, detalhe):
+    """Envia um alerta respeitando o anti-spam. Retorna True se enviou agora."""
+    if _deduplicado(chave, janela):
+        return False
+    if email_sender.enviar(app.config, destinatarios, assunto, corpo):
+        _registrar_envio(chave, tipo, detalhe)
+        return True
+    return False
+
+
+def enviar_alertas(app):
+    """Empurra alertas de falha recorrente (via diagnostics) e de saldo baixo do
+    2captcha, com a janela anti-spam. Retorna quantos alertas enviou agora.
+
+    - Falha recorrente: um alerta por (error_type, alvo) ativo; reenvio bloqueado
+      dentro da janela (AC P2 falha).
+    - Saldo: alerta so quando abaixo do limiar; saldo None (API fora) NAO gera
+      falso-baixo; mantem tambem o WARNING no painel de diagnostico (spec 02)."""
+    cfg = _config()
+    destinatarios = _destinatarios(cfg)
+    if not email_sender.smtp_configurado(app.config) or not destinatarios:
+        log_event('notif_alertas_sem_smtp', level='WARNING',
+                  tem_smtp=email_sender.smtp_configurado(app.config),
+                  destinatarios=len(destinatarios))
+        return 0
+
+    janela = app.config.get('NOTIF_ALERTA_JANELA_HORAS', 24)
+    enviados = 0
+
+    for alerta in diagnostics.alertas_ativos():
+        error_type = alerta.get('error_type')
+        alvo = alerta.get('alvo')
+        chave = f'falha:{error_type}:{alvo}'
+        assunto = f'[Certidoes] Alerta: falha recorrente {error_type} em {alvo}'
+        corpo = '\n'.join([
+            f'Falha recorrente detectada em {alvo}.',
+            f'Tipo de erro: {error_type}',
+            f'Ocorrencias: {alerta.get("ocorrencias")}',
+            f'Hipotese: {alerta.get("hipotese")}',
+        ])
+        if _enviar_alerta(app, destinatarios, chave, 'alerta_falha', assunto,
+                          corpo, janela, detalhe=str(alerta)):
+            enviados += 1
+
+    saldo = captcha_solver.consultar_saldo(app.config)
+    minimo = app.config.get('CAPTCHA_2_SALDO_MINIMO', 0)
+    if saldo is not None and saldo < minimo:
+        # preserva o aviso no painel de diagnostico (comportamento da spec 02)
+        log_event('agendador_saldo_2captcha_baixo', level='WARNING',
+                  saldo=saldo, minimo=minimo)
+        assunto = '[Certidoes] Alerta: saldo 2captcha baixo'
+        corpo = '\n'.join([
+            f'Saldo atual do 2captcha: {saldo:.2f} USD',
+            f'Limiar minimo configurado: {minimo:.2f} USD',
+            'Recarregue para nao interromper os lotes automatizados.',
+        ])
+        if _enviar_alerta(app, destinatarios, 'saldo_baixo', 'alerta_saldo',
+                          assunto, corpo, janela, detalhe=f'saldo={saldo}'):
+            enviados += 1
+
+    return enviados
