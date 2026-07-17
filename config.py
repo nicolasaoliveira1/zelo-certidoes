@@ -90,6 +90,21 @@ class Config:
     # Liga o agendador de emissao proativa no boot (spec 02). Desligado nos testes.
     AGENDADOR_ENABLED = _env_bool('AGENDADOR_ENABLED', True)
 
+    # --- Notificacoes por e-mail (spec 03) ---
+    # Credenciais SMTP SOMENTE por env (nunca versionadas). Destinatarios e
+    # cadencia do digest ficam em ConfiguracaoSistema (editaveis no painel).
+    SMTP_HOST = os.environ.get('SMTP_HOST') or ''
+    SMTP_PORT = _env_int('SMTP_PORT', 587)
+    SMTP_USER = os.environ.get('SMTP_USER') or ''
+    SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD') or ''
+    SMTP_FROM = os.environ.get('SMTP_FROM') or ''
+    SMTP_USE_TLS = _env_bool('SMTP_USE_TLS', True)
+    SMTP_TIMEOUT = _env_int('SMTP_TIMEOUT', 20)
+    # Digest sem novidade (0/0/0): envia "tudo em dia" por padrao.
+    NOTIF_DIGEST_ENVIAR_VAZIO = _env_bool('NOTIF_DIGEST_ENVIAR_VAZIO', True)
+    # Janela minima (horas) entre alertas iguais (anti-spam).
+    NOTIF_ALERTA_JANELA_HORAS = _env_int('NOTIF_ALERTA_JANELA_HORAS', 24)
+
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # recarrega templates Jinja a cada request
