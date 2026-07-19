@@ -12,6 +12,16 @@ from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
 from app.services.retry import retry_call
 
+# Erros de SMTP que nao adianta repetir (credencial/remetente/destinatario
+# recusados, recurso nao suportado): falham igual na proxima tentativa. Os
+# demais (conexao/timeout/desconexao) sao transitorios e valem retry.
+_ERROS_SMTP_PERMANENTES = (
+    smtplib.SMTPAuthenticationError,
+    smtplib.SMTPSenderRefused,
+    smtplib.SMTPRecipientsRefused,
+    smtplib.SMTPNotSupportedError,
+)
+
 
 def smtp_configurado(config):
     """True quando ha host e remetente. O destinatario e validado no chamador
@@ -67,6 +77,7 @@ def enviar(config, destinatarios, assunto, corpo_texto, *, execution_id=None):
         retry_call(
             lambda: _enviar_mensagem(config, msg, destinatarios),
             max_attempts=3, base_delay=0.5, jitter=0.2,
+            retry_if=lambda exc: not isinstance(exc, _ERROS_SMTP_PERMANENTES),
             on_retry=lambda attempt, delay, exc: log_event(
                 'email_retry', level='WARNING', attempt=attempt,
                 delay_ms=int(delay * 1000), error=str(exc)),

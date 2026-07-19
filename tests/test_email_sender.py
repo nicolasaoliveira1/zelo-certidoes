@@ -3,6 +3,7 @@
 email_sender.enviar nunca levanta: envia via SMTP com BCC (nao vaza a lista),
 retorna True no sucesso e False quando SMTP nao esta configurado ou falha.
 """
+import smtplib
 from unittest.mock import MagicMock, patch
 
 from app.services import email_sender
@@ -68,6 +69,29 @@ def test_enviar_servidor_fora_retorna_false_sem_levantar():
             patch('app.services.retry.time.sleep'):
         ok = email_sender.enviar(CONF, ['a@x.com'], 'Assunto', 'Corpo')
     assert ok is False
+
+
+def test_enviar_erro_permanente_nao_repete():
+    # erro permanente (auth) nao adianta repetir: uma unica tentativa, retorna False
+    ctor, servidor = _fake_smtp()
+    servidor.login.side_effect = smtplib.SMTPAuthenticationError(535, b'auth')
+    with patch.object(email_sender.smtplib, 'SMTP', ctor), \
+            patch('app.services.retry.time.sleep') as sleep_mock:
+        ok = email_sender.enviar(CONF, ['a@x.com'], 'Assunto', 'Corpo')
+    assert ok is False
+    assert servidor.login.call_count == 1  # sem retry
+    sleep_mock.assert_not_called()
+
+
+def test_enviar_erro_transitorio_repete():
+    # erro transitorio (rede) e retentado ate o limite antes de desistir
+    ctor, servidor = _fake_smtp()
+    servidor.send_message.side_effect = smtplib.SMTPServerDisconnected('caiu')
+    with patch.object(email_sender.smtplib, 'SMTP', ctor), \
+            patch('app.services.retry.time.sleep'):
+        ok = email_sender.enviar(CONF, ['a@x.com'], 'Assunto', 'Corpo')
+    assert ok is False
+    assert servidor.send_message.call_count == 3  # 3 tentativas
 
 
 def test_enviar_sem_smtp_configurado_nao_conecta_e_retorna_false():
