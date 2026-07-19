@@ -135,9 +135,17 @@ def _agendar_jobs(app):
 # --- jobs ------------------------------------------------------------------
 
 def job_snapshot_diario(app):
-    """Gera o snapshot diário por job real (SCHED-07). Idempotente."""
+    """Gera o snapshot diário por job real (SCHED-07). Idempotente.
+
+    Aproveita o tick diário (que roda mesmo com a emissão proativa desligada) para
+    enviar o digest de vencimentos quando a cadência vencer (spec 03, NOTIF-01)."""
     with app.app_context():
         snapshot_service.garantir_snapshot_diario()
+        try:
+            from app.services import notificacoes
+            notificacoes.enviar_digest_se_devido(app)
+        except Exception as exc:
+            log_event('notif_digest_job_falhou', level='ERROR', error=str(exc))
 
 
 def _avisar_saldo_baixo(app):
@@ -183,6 +191,14 @@ def job_renovacao_diaria(app):
 
         execution_id = CorrelationContext.new_execution_id()
         _avisar_saldo_baixo(app)
+        # push por e-mail dos alertas (falha recorrente + saldo baixo), spec 03.
+        # Best-effort: no-op sem SMTP/destinatario; nunca derruba o job.
+        try:
+            from app.services import notificacoes
+            notificacoes.enviar_alertas(app)
+        except Exception as exc:
+            log_event('notif_alertas_job_falhou', level='ERROR', error=str(exc),
+                      execution_id=execution_id)
 
         # 1) monta a fila a vencer por tipo (idempotente)
         alvos = {tv: fluxo['calc_ids'](app) for tv, fluxo in _fluxos.items()}

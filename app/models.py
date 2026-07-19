@@ -253,6 +253,28 @@ class TarefaEmissao(db.Model):
         return f'<TarefaEmissao {self.tipo} cert={self.certidao_id} {self.status}>'
 
 
+class NotificacaoLog(db.Model):
+    """Trilha durável do que já foi empurrado por e-mail (spec 03, AD-011).
+
+    Serve de anti-spam: antes de enviar uma notificação consulta-se o último
+    envio da mesma `chave` e só se dispara fora da janela. Sobrevive a restart
+    (não reenvia após reboot) e vira histórico do que foi notificado. Sem unique
+    constraint — mantém um registro por envio (mesma chave em janelas diferentes).
+    Carimbo em hora local naive (AD-004), como Certidao.atualizado_em."""
+    __tablename__ = 'notificacao_log'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # 'digest' | 'saldo_baixo' | 'falha:<error_type>:<alvo>'
+    chave = db.Column(db.String(120), nullable=False, index=True)
+    # 'digest' | 'alerta_saldo' | 'alerta_falha'
+    tipo = db.Column(db.String(20), nullable=False)
+    detalhe = db.Column(db.String(500), nullable=True)
+    enviada_em = db.Column(db.DateTime, nullable=False, default=datetime.now)
+
+    def __repr__(self):
+        return f'<NotificacaoLog {self.chave} {self.enviada_em}>'
+
+
 class PapelUsuario:
     """Papéis fixos (String, não db.Enum — portabilidade SQLite↔MySQL; ver AD-005).
 
@@ -352,6 +374,11 @@ class ConfiguracaoSistema(db.Model):
     # operador); horario em hora local naive (0-23, AD-004).
     agendador_ativo = db.Column(db.Boolean, nullable=False, default=True)
     agendador_hora = db.Column(db.Integer, nullable=False, default=3)
+    # Notificacoes por e-mail (spec 03). Destinatarios separados por virgula/;/
+    # linha; cadencia do digest 'semanal' (default) ou 'diaria'. Credenciais SMTP
+    # ficam em env (config.py), nunca aqui.
+    notif_destinatarios = db.Column(db.String(1000), nullable=True)
+    notif_cadencia = db.Column(db.String(10), nullable=False, default='semanal')
 
     def __repr__(self):
         return f'<ConfiguracaoSistema {self.id}>'

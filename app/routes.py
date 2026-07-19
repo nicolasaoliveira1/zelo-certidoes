@@ -1460,6 +1460,17 @@ def configuracoes():
             config.agendador_hora = hora
             config.agendador_ativo = _to_bool(request.form.get('agendador_ativo'))
 
+        # Notificacoes por e-mail (spec 03): destinatarios + cadencia do digest.
+        # So processa quando o formulario traz a secao (POST parcial nao mexe).
+        if 'notif_cadencia' in request.form:
+            cadencia = (request.form.get('notif_cadencia') or '').strip().lower()
+            if cadencia not in ('semanal', 'diaria'):
+                flash('Cadencia de notificacao invalida: use semanal ou diaria.', 'warning')
+                return redirect(url_for('main.configuracoes'))
+            config.notif_cadencia = cadencia
+            destinatarios = (request.form.get('notif_destinatarios') or '').strip()
+            config.notif_destinatarios = destinatarios or None
+
         salvou = False
         try:
             db.session.commit()
@@ -1495,6 +1506,8 @@ def configuracoes():
         caminho_rede_efetivo=file_manager.get_caminho_rede(),
         agendador_ativo=(config.agendador_ativo if config else True),
         agendador_hora=(config.agendador_hora if config else 3),
+        notif_destinatarios=(config.notif_destinatarios if config else None) or '',
+        notif_cadencia=(config.notif_cadencia if config else 'semanal'),
     )
 
 
