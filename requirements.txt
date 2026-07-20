@@ -20,3 +20,8 @@ WTForms==3.2.2
 # Agendador de emissao proativa (spec 02) — BackgroundScheduler in-process, sem broker.
 # Puxa tzlocal como dependencia transitiva.
 APScheduler==3.11.3
+# Exportacao da carteira (spec 04): planilha XLSX (openpyxl), dossie PDF = capa
+# (fpdf2, importa como `fpdf`) + merge dos PDFs (pypdf). fpdf2 puxa fonttools/defusedxml.
+openpyxl==3.1.5
+pypdf==6.14.2
+fpdf2==2.8.7
