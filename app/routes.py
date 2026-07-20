@@ -2746,3 +2746,36 @@ def exportar_dossie(empresa_id):
         return redirect(url_for('main.dashboard'))
     nome = f'dossie-{_slug_arquivo(empresa.nome)}.pdf'
     return send_file(buffer, mimetype='application/pdf', as_attachment=True, download_name=nome)
+
+
+_PRESETS_PRODUTIVIDADE = (30, 90)
+
+
+def _dias_produtividade(valor):
+    """Periodo (dias) da produtividade: um dos presets, senao 30 (default)."""
+    try:
+        dias = int(valor)
+    except (TypeError, ValueError):
+        return 30
+    return dias if dias in _PRESETS_PRODUTIVIDADE else 30
+
+
+@bp.route('/produtividade')
+@requer_papel('leitura')
+def produtividade():
+    """Pagina de produtividade (emissoes/dia, taxa por tipo, tempo medio de lote)
+    a partir de ExecucaoLote. Reflete os lotes registrados (FGTS/Estadual/Municipal)."""
+    dias = _dias_produtividade(request.args.get('dias'))
+    dados = export_service.coletar_produtividade(dias)
+    return render_template('produtividade.html', dados=dados, dias=dias,
+                           presets=_PRESETS_PRODUTIVIDADE)
+
+
+@bp.route('/produtividade/exportar.xlsx')
+@requer_papel('leitura')
+def produtividade_exportar():
+    dias = _dias_produtividade(request.args.get('dias'))
+    dados = export_service.coletar_produtividade(dias)
+    buffer = export_service.gerar_planilha_produtividade(dados)
+    nome = f'produtividade-{dias}d-{date.today().strftime("%Y%m%d")}.xlsx'
+    return send_file(buffer, mimetype=_XLSX_MIME, as_attachment=True, download_name=nome)

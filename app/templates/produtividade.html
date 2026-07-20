@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block titulo %}Produtividade{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+    <div>
+        <h4 class="mb-1 fw-bold">Produtividade</h4>
+        <p class="text-body-secondary mb-0">
+            Emissões, taxa de sucesso e tempo de lote nos últimos {{ dias }} dias.
+        </p>
+    </div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <div class="btn-group" role="group" aria-label="Período">
+            {% for preset in presets %}
+            <a class="btn btn-sm {{ 'btn-primary' if preset == dias else 'btn-soft-primary' }}"
+               href="{{ url_for('main.produtividade', dias=preset) }}">{{ preset }} dias</a>
+            {% endfor %}
+        </div>
+        <a class="btn btn-sm btn-primary" href="{{ url_for('main.produtividade_exportar', dias=dias) }}">
+            <i class="bi bi-file-earmark-spreadsheet"></i> Exportar XLSX
+        </a>
+    </div>
+</div>
+
+<p class="text-body-secondary small mb-4">
+    <i class="bi bi-info-circle"></i>
+    Reflete os lotes registrados (FGTS, Estadual RS e Municipal). Federal e Trabalhista
+    ainda não rodam em lote e não entram nestes números.
+</p>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <p class="text-body-secondary mb-1 small text-uppercase">Total de lotes</p>
+                <p class="h3 fw-bold mb-0">{{ dados.total_lotes }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <p class="text-body-secondary mb-1 small text-uppercase">Emissões</p>
+                <p class="h3 fw-bold mb-0">{{ dados.total_emissoes }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <p class="text-body-secondary mb-1 small text-uppercase">Tempo médio de lote</p>
+                <p class="h3 fw-bold mb-0">
+                    {% if dados.tempo_medio_min is not none %}{{ dados.tempo_medio_min }} min{% else %}—{% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-lg-7">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-body-tertiary border-bottom"><strong>Por tipo</strong></div>
+            <div class="card-body p-0">
+                {% if dados.por_tipo %}
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th>Tipo</th>
+                                <th class="text-end">Lotes</th>
+                                <th class="text-end">Sucessos</th>
+                                <th class="text-end">Falhas</th>
+                                <th class="text-end">Taxa</th>
+                                <th class="text-end">Tempo médio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for t in dados.por_tipo %}
+                            <tr>
+                                <td>{{ t.tipo }}</td>
+                                <td class="text-end">{{ t.lotes }}</td>
+                                <td class="text-end">{{ t.sucesso }}</td>
+                                <td class="text-end">{{ t.falhas }}</td>
+                                <td class="text-end">{{ t.taxa }}%</td>
+                                <td class="text-end">
+                                    {% if t.tempo_medio_min is not none %}{{ t.tempo_medio_min }} min{% else %}—{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-body-secondary mb-0 p-3">Nenhum lote no período.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-5">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-body-tertiary border-bottom"><strong>Emissões por dia</strong></div>
+            <div class="card-body p-0">
+                {% if dados.emissoes_por_dia %}
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0 align-middle">
+                        <thead>
+                            <tr><th>Data</th><th class="text-end">Emissões</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for e in dados.emissoes_por_dia %}
+                            <tr>
+                                <td>{{ e.data.strftime('%d/%m/%Y') }}</td>
+                                <td class="text-end">{{ e.emissoes }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-body-secondary mb-0 p-3">Nenhuma emissão no período.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
