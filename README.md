@@ -26,6 +26,10 @@ O sistema combina:
 - Flask-SQLAlchemy / SQLAlchemy
 - Flask-Migrate / Alembic
 - PyMySQL
+- Flask-Login / Flask-WTF (autenticação de sessão e CSRF)
+- APScheduler (agendador in-process da emissão proativa)
+- smtplib (envio de e-mail de notificações; biblioteca padrão)
+- openpyxl / pypdf / fpdf2 (exportação: planilha XLSX e dossiê PDF)
 
 ### Automação
 
@@ -52,10 +56,19 @@ O sistema combina:
 - Arquitetura orientada a manutenção: motor compartilhado de lotes e serviços dedicados para reduzir duplicação e facilitar evolução.
 - Automação híbrida pragmática: Selenium local para cenários reais de portais públicos, com fluxos assistidos e automáticos.
 - Gestão de arquivos ponta a ponta: detecção de download, estabilização, movimentação/renomeação e vínculo do PDF ao registro no banco.
-- Segurança aplicada ao uso diário: visualização de PDF por token assinado e controle explícito de configurações sensíveis via ambiente.
+- Segurança aplicada ao uso diário: login obrigatório com papéis (leitura/operador/admin) e negação por padrão, proteção CSRF, trilha de auditoria, visualização de PDF por token assinado e credenciais sensíveis só via ambiente.
+- Proatividade: agendador diário que emite o que está vencendo e avisa por e-mail (digest de vencimentos e alertas de falha/saldo), sem depender de serviço externo.
 - Fluxos críticos robustos no RS/FGTS: lote com pausa/retomada/parada, polling de progresso, resumo final e fail-fast para erro de chave do solver.
 
 ## Principais funcionalidades
+
+### Acesso e segurança (login e papéis)
+
+- Login por sessão: **nenhuma tela funciona sem estar autenticado** (negação por padrão; só login, health e estáticos são públicos).
+- Três papéis com hierarquia — **leitura** < **operador** < **admin**: leitura só consulta e exporta; operador emite/edita; admin gerencia usuários e vê a auditoria.
+- Proteção CSRF em todos os formulários; senhas com hash forte.
+- **Trilha de auditoria**: ações sensíveis (login, criação/alteração de usuário, etc.) ficam registradas e são consultáveis em `/admin/auditoria` (admin).
+- Gestão de usuários em `/admin/usuarios` (admin). O primeiro administrador é criado por linha de comando (não há auto-cadastro público).
 
 ### Dashboard e operação
 
@@ -96,6 +109,26 @@ O sistema combina:
 - Salva caminho do arquivo no banco.
 - Visualização de PDF com token assinado e expirável.
 - Download automático no Chrome (incluindo fluxos em modo anônimo), reduzindo necessidade de interação manual no diálogo de salvar.
+
+### Emissão proativa (agendador)
+
+- Agendador embutido (sem serviço externo) que roda **uma vez por dia**, na hora configurada no painel.
+- Todo dia tira uma "foto" das contagens (para o gráfico de evolução) e, quando ligado, **enfileira e emite automaticamente** as certidões vencidas/a vencer, reaproveitando os mesmos lotes da operação manual.
+- Fila durável: o que ficou pendente sobrevive a reinício do sistema e pode ser retentado por item.
+- Liga/desliga e hora ficam na tela de **Configurações**.
+
+### Notificações por e-mail
+
+- **Digest periódico** (semanal por padrão, ou diário) com o resumo da carteira: quantas a vencer, vencidas e pendentes.
+- **Alertas** de falha recorrente de automação e de **saldo baixo do 2captcha** antes de um lote parar no meio.
+- Anti-spam durável (não repete o mesmo alerta dentro da janela, mesmo após reiniciar) e envio que nunca derruba a automação se o e-mail falhar.
+- Destinatários e cadência configuráveis no painel; credenciais SMTP só por variável de ambiente.
+
+### Exportação e relatórios
+
+- **Exportar carteira (Excel):** botão no dashboard baixa uma planilha `.xlsx` **respeitando os filtros ativos** (status, tipo, estado, cidade) — sai exatamente o que está na tela.
+- **Dossiê (PDF) por empresa:** um único PDF com capa + as certidões **válidas** concatenadas, pronto para licitação/cliente (papel operador). PDF ausente/corrompido é pulado com aviso.
+- **Produtividade:** página `/produtividade` com emissões/dia, taxa de sucesso por tipo e tempo médio de lote (30/90 dias), com exportação em Excel.
 
 ### Observabilidade e diagnóstico
 
@@ -174,6 +207,21 @@ SECRET_KEY=uma_chave_segura
 # CAPTCHA_2_DEFAULT_TIMEOUT=180
 # CAPTCHA_2_POLLING_INTERVAL=10
 # CAPTCHA_2_SERVER=2captcha.com
+# CAPTCHA_2_SALDO_MINIMO=2.0
+
+# Agendador da emissão proativa (opcional; liga/desliga e hora também no painel)
+# AGENDADOR_ENABLED=true
+
+# Notificações por e-mail (opcional; sem SMTP_HOST/SMTP_FROM o envio é ignorado com aviso)
+# SMTP_HOST=smtp.seuprovedor.com
+# SMTP_PORT=587
+# SMTP_USER=usuario
+# SMTP_PASSWORD=senha
+# SMTP_FROM=certidoes@seuescritorio.com
+# SMTP_USE_TLS=true
+# SMTP_TIMEOUT=20
+# NOTIF_DIGEST_ENVIAR_VAZIO=true
+# NOTIF_ALERTA_JANELA_HORAS=24
 
 # Captura de contexto na falha Selenium (screenshot + HTML em logs/selenium)
 # SELENIUM_CAPTURE_ENABLED=true
@@ -181,27 +229,41 @@ SECRET_KEY=uma_chave_segura
 # SELENIUM_CAPTURE_RETENCAO_DIAS=14
 ```
 
-5. Rode migrations e inicie a aplicação:
+5. Rode as migrations:
 
 ```powershell
 flask db upgrade
+```
+
+6. Crie o primeiro administrador (só é possível criar um admin por CLI; a senha é solicitada de forma interativa):
+
+```powershell
+flask criar-admin --username chefe
+```
+
+> Depois, novos usuários podem ser criados pela CLI (`flask criar-usuario --username ana --papel operador`) ou pela tela `/admin/usuarios`.
+
+7. Inicie a aplicação:
+
+```powershell
 python run.py
 ```
 
-Acesso local: http://localhost:5000
+Acesso local: http://localhost:5000 (faça login com o admin criado acima)
 
 > **Atalho no Windows:** dê um duplo clique em `iniciar.bat` na pasta do projeto. Ele ativa o `venv`, garante as dependências (`pip install -r requirements.txt`, idempotente) e sobe o app. Se faltar alguma dependência crítica (ex.: `undetected-chromedriver`), o `run.py` aborta o boot com uma mensagem clara em vez de subir quebrado.
 
 ## Como usar
 
-1. Acesse a tela de nova empresa em `/empresa/nova`.
-2. Cadastre empresa com CNPJ, cidade e estado.
-3. No dashboard:
+1. Faça login com um usuário existente (o primeiro admin é criado por `flask criar-admin`). Sem sessão, todas as páginas redirecionam para o login.
+2. Acesse a tela de nova empresa em `/empresa/nova`.
+3. Cadastre empresa com CNPJ, cidade e estado.
+4. No dashboard:
    - use Emitir para automações suportadas,
    - use Abrir Site quando o fluxo for assistido,
    - use Visualizar para abrir PDF salvo.
-4. Acesse `/empresas` para gerenciar cadastro, edição e remoção com confirmação.
-5. Para lotes:
+5. Acesse `/empresas` para gerenciar cadastro, edição e remoção com confirmação.
+6. Para lotes:
    - FGTS: fluxo de lote quando houver mais de 1 item elegível.
    - Estadual RS: lote com controles de pausar, retomar e parar.
    - Municipal (Imbé e Tramandaí): lote com as mesmas ações; resolve captcha de imagem via 2captcha no Imbé.
@@ -268,11 +330,13 @@ Portais **IPM Atende.Net** (URL `*.atende.net`, como Gravataí/Osório/Novo Hamb
 app/
   __init__.py              # Inicialização Flask (factory create_app)
   routes.py                # Rotas e fluxos de negócio (blueprint 'main')
+  auth.py                  # Login/papéis (deny-by-default, requer_papel) + painéis admin
+  cli.py                   # Comandos CLI (criar-admin / criar-usuario)
   models.py                # Modelos do banco
   captcha_solver.py        # Integração 2captcha (ALTCHA e captcha de imagem)
   file_manager.py          # Detecção/movimentação de PDFs
   errors.py                # Taxonomia de erros + descrever_erro (mensagens acionáveis)
-  utils.py                 # Utilitários compartilhados (to_bool, get_config_value)
+  utils.py                 # Utilitários compartilhados (to_bool, get_config_value, normalizar_cidade)
   automation/              # Pacote de automação (antes automation.py)
     __init__.py            #   reexporta SITES_CERTIDOES, VALIDADES_CERTIDOES
     sites.py               #   URLs, seletores e validades padrão
@@ -293,6 +357,16 @@ app/
     health.py              # Health checks de dependências
     retry.py               # Retry com backoff/jitter
     rs_altcha.py           # Resolver/injetar ALTCHA no RS
+    usuario_service.py     # Domínio de usuários (spec 01: criar/autenticar/papel/ativo)
+    auditoria.py           # Registro/consulta de auditoria (spec 01)
+    agendador.py           # Agendador APScheduler + jobs diários (spec 02)
+    fila_emissao.py        # Fila durável de emissão TarefaEmissao (spec 02)
+    snapshot_service.py    # Foto diária das contagens + classificação de status
+    notificacoes.py        # Digest de vencimentos + alertas (spec 03)
+    email_sender.py        # Transporte SMTP best-effort (spec 03)
+    carteira_filtros.py    # Recorte da carteira replicado server-side (spec 04)
+    export_service.py      # Planilhas XLSX (carteira e produtividade) (spec 04)
+    dossie_service.py      # Dossiê PDF por empresa (capa fpdf2 + merge pypdf) (spec 04)
   static/
     css/
     images/
@@ -304,8 +378,13 @@ app/
     empresa_detalhe.html
     empresa_remover_confirm.html
     relatorios.html
+    produtividade.html       # Produtividade + exportação (spec 04)
     configuracoes.html
     diagnostico.html
+    login.html               # Login (spec 01)
+    usuarios.html            # Gestão de usuários, admin (spec 01)
+    auditoria.html           # Painel de auditoria, admin (spec 01)
+    403.html                 # Acesso negado (spec 01)
 ```
 
 ## Limitações atuais

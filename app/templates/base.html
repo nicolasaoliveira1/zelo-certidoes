@@ -234,6 +234,10 @@
                 <i class="bi bi-bar-chart-line-fill"></i>
                 <span>Relatórios</span>
             </a>
+            <a class="sidebar-link {% if current_endpoint == 'main.produtividade' %}active{% endif %}" href="{{ url_for('main.produtividade') }}" title="Produtividade">
+                <i class="bi bi-graph-up-arrow"></i>
+                <span>Produtividade</span>
+            </a>
         </nav>
         <div class="sidebar-nav-footer">
             {% if current_user.papel == 'admin' %}

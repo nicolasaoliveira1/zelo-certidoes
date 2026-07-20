@@ -32,6 +32,22 @@ def get_config_value(name, default=None):
         return os.environ.get(name, default)
 
 
+def normalizar_cidade(valor):
+    """Chave canonica de cidade: trim -> remover acentos -> maiuscula; '' se vazio.
+
+    Fonte unica compartilhada pelo filtro do dashboard (contagem/recorte por
+    cidade no cliente) e pela exportacao da carteira (recorte replicado no
+    servidor), garantindo que variacoes como 'Imbe'/'IMBE' caiam na mesma chave.
+    Import de `remover_acentos` e lazy para manter `utils` como modulo base sem
+    acoplar seu tempo de import ao de `file_manager`.
+    """
+    texto = (valor or '').strip()
+    if not texto:
+        return ''
+    from app.file_manager import remover_acentos
+    return remover_acentos(texto).upper()
+
+
 def mtime_para_datetime_local(caminho):
     """mtime do arquivo em `caminho` como datetime local (naive), ou None.
 
