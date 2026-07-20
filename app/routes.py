@@ -80,7 +80,16 @@ from app.models import (
     get_a_vencer_dias,
 )
 from app.utils import get_config_value as _get_config_value, normalizar_cidade, to_bool as _to_bool, utcnow_naive
-from app.services import agendador, auditoria, batch_engine, certidao_service, diagnostics, preflight
+from app.services import (
+    agendador,
+    auditoria,
+    batch_engine,
+    certidao_service,
+    diagnostics,
+    dossie_service,
+    export_service,
+    preflight,
+)
 from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
 from app.services.snapshot_service import (
@@ -2697,3 +2706,43 @@ def atualizar_validade_json(certidao_id):
     except Exception as e:
         db.session.rollback()
         return _json_error(code=500, exc=e)
+
+
+# --- Exportacao da carteira (spec 04) -----------------------------------------
+
+_XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+
+def _slug_arquivo(texto):
+    """Nome de arquivo seguro a partir de um texto livre (sem acento/espaco)."""
+    base = re.sub(r'[^a-z0-9]+', '-', file_manager.remover_acentos(texto or '').lower()).strip('-')
+    return base or 'empresa'
+
+
+@bp.route('/exportar/carteira.xlsx')
+@requer_papel('leitura')
+def exportar_carteira():
+    """Planilha XLSX da carteira respeitando os filtros ativos do painel
+    (status/tipo/estado/cidade replicados server-side)."""
+    buffer = export_service.gerar_planilha_carteira(
+        status=request.args.getlist('status'),
+        tipo=request.args.getlist('tipo'),
+        estado=request.args.getlist('estado'),
+        cidade=request.args.getlist('cidade'),
+    )
+    nome = f'carteira-{date.today().strftime("%Y%m%d")}.xlsx'
+    return send_file(buffer, mimetype=_XLSX_MIME, as_attachment=True, download_name=nome)
+
+
+@bp.route('/exportar/dossie/<int:empresa_id>.pdf')
+@requer_papel('operador')
+def exportar_dossie(empresa_id):
+    """Dossie PDF (capa + certidoes validas) de uma empresa. Sem certidoes
+    validas, avisa e volta ao painel em vez de baixar um PDF vazio."""
+    empresa = Empresa.query.get_or_404(empresa_id)
+    buffer, avisos = dossie_service.gerar_dossie(empresa)
+    if buffer is None:
+        flash(f'Não foi possível gerar o dossiê de {empresa.nome}: {"; ".join(avisos)}.', 'warning')
+        return redirect(url_for('main.dashboard'))
+    nome = f'dossie-{_slug_arquivo(empresa.nome)}.pdf'
+    return send_file(buffer, mimetype='application/pdf', as_attachment=True, download_name=nome)
