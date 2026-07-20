@@ -258,6 +258,15 @@
         </div>
     </div>
 
+    <div class="d-flex justify-content-end mb-3">
+        <a id="btn-exportar-carteira" class="btn btn-soft-primary btn-sm"
+            href="{{ url_for('main.exportar_carteira') }}"
+            onclick="this.href='{{ url_for('main.exportar_carteira') }}'+window.location.search"
+            title="Baixar planilha (respeita os filtros ativos)">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i>Exportar carteira
+        </a>
+    </div>
+
     <div id="skeleton-dashboard" aria-hidden="true" aria-label="Carregando empresas...">
         {% for _ in range(3) %}
         <div class="card mb-4 shadow-sm border-0">
@@ -339,7 +348,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="d-flex align-items-center">
+                <div class="d-flex align-items-center gap-2">
                     <button type="button" class="btn btn-soft-primary btn-sm btn-abrir-pasta"
                         data-empresa-id="{{ empresa.id }}"
                         title="Abrir pasta de certidões na rede"
@@ -347,6 +356,15 @@
                         aria-label="Abrir pasta de certidões da empresa {{ empresa.nome }}">
                         <i class="bi bi-folder2-open me-1"></i>Pasta
                     </button>
+                    {% if current_user.papel in ['operador', 'admin'] %}
+                    <a class="btn btn-ghost btn-sm btn-dossie"
+                        href="{{ url_for('main.exportar_dossie', empresa_id=empresa.id) }}"
+                        title="Gerar dossiê PDF (certidões válidas)"
+                        data-bs-tooltip="true" data-bs-placement="top"
+                        aria-label="Gerar dossiê de {{ empresa.nome }}">
+                        <i class="bi bi-file-earmark-pdf me-1"></i>Dossiê
+                    </a>
+                    {% endif %}
                 </div>
             </div>
 
