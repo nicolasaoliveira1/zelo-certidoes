@@ -79,7 +79,7 @@ from app.models import (
     TipoCertidao,
     get_a_vencer_dias,
 )
-from app.utils import get_config_value as _get_config_value, to_bool as _to_bool, utcnow_naive
+from app.utils import get_config_value as _get_config_value, normalizar_cidade, to_bool as _to_bool, utcnow_naive
 from app.services import agendador, auditoria, batch_engine, certidao_service, diagnostics, preflight
 from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
@@ -759,10 +759,8 @@ def visualizar_token(certidao_id):
 
 
 def _normalizar_cidade_dashboard(valor):
-    texto = (valor or '').strip()
-    if not texto:
-        return ''
-    return file_manager.remover_acentos(texto).upper()
+    # Alias fino para a fonte unica em utils (reuso painel/export — spec 04).
+    return normalizar_cidade(valor)
 
 
 def _escolher_cidade_canonica_dashboard(variantes):
