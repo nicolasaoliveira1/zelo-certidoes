@@ -4,6 +4,7 @@ from datetime import date, timedelta
 import pytest
 
 from app import db, routes
+from app.routes import lotes
 from app.automation.batch_state import FGTS_BATCH_STATE
 from app.models import Certidao, Empresa, TipoCertidao
 from app.services import agendador, batch_engine
@@ -46,7 +47,7 @@ def test_rodar_lote_pula_se_lote_manual_em_andamento(app, ids, fluxos_registrado
 
 def test_rodar_lote_pula_se_emissao_individual_ativa(app, ids, fluxos_registrados, monkeypatch):
     """Não concorre com uma emissão individual em curso (guarda do lote manual)."""
-    monkeypatch.setattr(routes, 'emissao_individual_ativa', lambda: True)
+    monkeypatch.setattr(lotes, 'emissao_individual_ativa', lambda: True)
 
     def _emit_proibido(cid, drv, eid):
         raise AssertionError('nao deveria emitir com emissao individual ativa')
@@ -67,7 +68,7 @@ def test_lote_agendado_continua_apos_item_grave(app, ids, fluxos_registrados, mo
             pass
 
     # evita lancar Chrome real; o emit fake ignora o driver de qualquer forma
-    monkeypatch.setattr(routes, '_criar_driver_chrome', lambda *a, **k: _FakeDriver())
+    monkeypatch.setattr(lotes, '_criar_driver_chrome', lambda *a, **k: _FakeDriver())
 
     seq = iter([(True, False, None), (False, True, 'timeout'), (True, False, None)])
 
