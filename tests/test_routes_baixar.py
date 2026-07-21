@@ -7,14 +7,14 @@ devolve um 'resultado' controlado, entao nenhum navegador e aberto. Cobre:
 """
 from datetime import date, timedelta
 
-from app import routes
+from app.services import emissao_service
 from app.models import Certidao, TipoCertidao
 
 
 def _mock_automacao(monkeypatch, resultado):
-    monkeypatch.setattr(routes, '_executar_automacao_baixar', lambda certidao, cfg: resultado)
+    monkeypatch.setattr(emissao_service, '_executar_automacao_baixar', lambda certidao, cfg: resultado)
     # evita criar o arquivo-chave de interrupcao no diretorio do app durante o teste
-    monkeypatch.setattr(routes.file_manager, 'criar_chave_interrupcao', lambda: None)
+    monkeypatch.setattr(emissao_service.file_manager, 'criar_chave_interrupcao', lambda: None)
 
 
 # --------------------------- rota (contrato HTTP) ---------------------------
@@ -25,7 +25,7 @@ def test_baixar_inexistente_404(client):
 
 
 def test_baixar_sucesso(client, ids, monkeypatch):
-    resultado = routes._resultado_baixar_vazio()
+    resultado = emissao_service._resultado_baixar_vazio()
     resultado['arquivo_salvo_msg'] = 'Arquivo salvo em: C:/x/cert.pdf'
     _mock_automacao(monkeypatch, resultado)
 
@@ -39,7 +39,7 @@ def test_baixar_sucesso(client, ids, monkeypatch):
 
 
 def test_baixar_erro_500(client, ids, monkeypatch):
-    resultado = routes._resultado_baixar_vazio()
+    resultado = emissao_service._resultado_baixar_vazio()
     resultado['erro_500'] = 'Ocorreu um erro na automação.'
     _mock_automacao(monkeypatch, resultado)
 
@@ -49,7 +49,7 @@ def test_baixar_erro_500(client, ids, monkeypatch):
 
 
 def test_baixar_janela_fechada(client, ids, monkeypatch):
-    resultado = routes._resultado_baixar_vazio()
+    resultado = emissao_service._resultado_baixar_vazio()
     resultado['window_closed'] = True
     _mock_automacao(monkeypatch, resultado)
 
@@ -65,48 +65,48 @@ def test_baixar_janela_fechada(client, ids, monkeypatch):
 def test_validar_baixar_federal_redireciona(app, ids):
     with app.app_context():
         cert = Certidao.query.filter_by(tipo=TipoCertidao.FEDERAL).first()
-        resp = routes._validar_baixar(cert)
+        resp = emissao_service._validar_baixar(cert)
         assert resp is not None
         assert resp.status_code == 302  # redirect para a Receita
 
 
 def test_validar_baixar_rs_lote_ativo(app, ids):
-    original = routes.RS_BATCH_STATE.get('status')
+    original = emissao_service.RS_BATCH_STATE.get('status')
     with app.app_context():
         cert = Certidao.query.filter_by(tipo=TipoCertidao.ESTADUAL).first()  # empresa semeada e RS
-        routes.RS_BATCH_STATE['status'] = 'running'
+        emissao_service.RS_BATCH_STATE['status'] = 'running'
         try:
-            resp = routes._validar_baixar(cert)
+            resp = emissao_service._validar_baixar(cert)
         finally:
-            routes.RS_BATCH_STATE['status'] = original
+            emissao_service.RS_BATCH_STATE['status'] = original
     assert resp is not None
     _body, code = resp  # _json_error -> (response, code)
     assert code == 400
 
 
 def test_validar_baixar_fgts_lote_ativo(app, ids):
-    original = routes.FGTS_BATCH_STATE.get('status')
+    original = emissao_service.FGTS_BATCH_STATE.get('status')
     with app.app_context():
         cert = Certidao.query.filter_by(tipo=TipoCertidao.FGTS).first()
-        routes.FGTS_BATCH_STATE['status'] = 'running'
+        emissao_service.FGTS_BATCH_STATE['status'] = 'running'
         try:
-            resp = routes._validar_baixar(cert)
+            resp = emissao_service._validar_baixar(cert)
         finally:
-            routes.FGTS_BATCH_STATE['status'] = original
+            emissao_service.FGTS_BATCH_STATE['status'] = original
     assert resp is not None
     _body, code = resp  # _json_error -> (response, code)
     assert code == 400
 
 
 def test_validar_baixar_municipal_lote_ativo(app, ids):
-    original = routes.MUNICIPAL_BATCH_STATE.get('status')
+    original = emissao_service.MUNICIPAL_BATCH_STATE.get('status')
     with app.app_context():
         cert = Certidao.query.filter_by(tipo=TipoCertidao.MUNICIPAL).first()
-        routes.MUNICIPAL_BATCH_STATE['status'] = 'running'
+        emissao_service.MUNICIPAL_BATCH_STATE['status'] = 'running'
         try:
-            resp = routes._validar_baixar(cert)
+            resp = emissao_service._validar_baixar(cert)
         finally:
-            routes.MUNICIPAL_BATCH_STATE['status'] = original
+            emissao_service.MUNICIPAL_BATCH_STATE['status'] = original
     assert resp is not None
     _body, code = resp
     assert code == 400
@@ -115,7 +115,7 @@ def test_validar_baixar_municipal_lote_ativo(app, ids):
 def test_validar_baixar_segue_quando_ok(app, ids):
     with app.app_context():
         cert = Certidao.query.filter_by(tipo=TipoCertidao.FGTS).first()
-        assert routes._validar_baixar(cert) is None
+        assert emissao_service._validar_baixar(cert) is None
 
 
 # --------------------------- _montar_config_baixar ---------------------------
@@ -123,7 +123,7 @@ def test_validar_baixar_segue_quando_ok(app, ids):
 def test_montar_config_fgts(app, ids):
     with app.test_request_context(f"/certidao/baixar/{ids['fgts']}"):
         cert = Certidao.query.get(ids['fgts'])
-        cfg, erro = routes._montar_config_baixar(cert)
+        cfg, erro = emissao_service._montar_config_baixar(cert)
         assert erro is None
         assert cfg['tipo_certidao_chave'] == 'FGTS'
         assert len(cfg['cnpj_limpo']) == 14
@@ -134,7 +134,7 @@ def test_montar_config_municipal_sem_regra(app, ids):
     # empresa semeada e de Tramandai, mas nao ha Municipio cadastrado -> 404
     with app.test_request_context(f"/certidao/baixar/{ids['municipal']}"):
         cert = Certidao.query.get(ids['municipal'])
-        cfg, erro = routes._montar_config_baixar(cert)
+        cfg, erro = emissao_service._montar_config_baixar(cert)
         assert cfg is None
         _body, code = erro
         assert code == 404
@@ -161,9 +161,9 @@ def _cfg_simples(certidao):
 def test_resposta_erro_500(app, ids):
     with app.test_request_context('/'):
         cert = Certidao.query.get(ids['fgts'])
-        resultado = routes._resultado_baixar_vazio()
+        resultado = emissao_service._resultado_baixar_vazio()
         resultado['erro_500'] = 'falhou'
-        resp = routes._montar_resposta_baixar(cert, _cfg_simples(cert), resultado)
+        resp = emissao_service._montar_resposta_baixar(cert, _cfg_simples(cert), resultado)
         _body, code = resp
         assert code == 500
 
@@ -171,9 +171,9 @@ def test_resposta_erro_500(app, ids):
 def test_resposta_window_closed(app, ids):
     with app.test_request_context('/'):
         cert = Certidao.query.get(ids['fgts'])
-        resultado = routes._resultado_baixar_vazio()
+        resultado = emissao_service._resultado_baixar_vazio()
         resultado['window_closed'] = True
-        resp = routes._montar_resposta_baixar(cert, _cfg_simples(cert), resultado)
+        resp = emissao_service._montar_resposta_baixar(cert, _cfg_simples(cert), resultado)
         assert resp.get_json()['status'] == 'window_closed_no_file'
 
 
@@ -181,10 +181,10 @@ def test_resposta_sucesso_com_data_encontrada(app, ids):
     alvo = date.today() + timedelta(days=120)
     with app.test_request_context('/'):
         cert = Certidao.query.get(ids['fgts'])
-        resultado = routes._resultado_baixar_vazio()
+        resultado = emissao_service._resultado_baixar_vazio()
         resultado['arquivo_salvo_msg'] = 'Arquivo salvo em: X'
         resultado['data_encontrada'] = alvo
-        resp = routes._montar_resposta_baixar(cert, _cfg_simples(cert), resultado)
+        resp = emissao_service._montar_resposta_baixar(cert, _cfg_simples(cert), resultado)
         j = resp.get_json()
         assert j['status'] == 'success_file_saved'
         assert j['nova_data'] == alvo.strftime('%Y-%m-%d')
@@ -194,10 +194,10 @@ def test_resposta_sucesso_com_data_encontrada(app, ids):
 def test_resposta_rs_positiva(app, ids):
     with app.test_request_context('/'):
         cert = Certidao.query.get(ids['rs'])
-        resultado = routes._resultado_baixar_vazio()
+        resultado = emissao_service._resultado_baixar_vazio()
         resultado['rs_estadual_classificacao'] = 'positiva'
         resultado['rs_estadual_msg'] = 'POSITIVA detectada'
-        resp = routes._montar_resposta_baixar(cert, _cfg_simples(cert), resultado)
+        resp = emissao_service._montar_resposta_baixar(cert, _cfg_simples(cert), resultado)
         j = resp.get_json()
         assert j['status'] == 'estadual_rs_positiva'
         assert j['message'] == 'POSITIVA detectada'
