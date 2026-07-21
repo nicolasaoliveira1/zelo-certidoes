@@ -15,14 +15,13 @@ from flask import (
     send_file,
     url_for,
 )
-from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select, WebDriverWait
 
 from app import db, file_manager
-from app.errors import ErrorType, descrever_erro, mensagem_usuario
+from app.errors import ErrorType
 from app.automation import SITES_CERTIDOES, capture, pdf, steps
 from app.automation.batch_state import (
     FGTS_BATCH_LOCK,
@@ -79,7 +78,13 @@ from app.models import (
     TipoCertidao,
     get_a_vencer_dias,
 )
-from app.utils import get_config_value as _get_config_value, normalizar_cidade, to_bool as _to_bool, utcnow_naive
+from app.utils import (
+    get_config_value as _get_config_value,
+    json_error as _json_error,
+    normalizar_cidade,
+    to_bool as _to_bool,
+    utcnow_naive,
+)
 from app.services import (
     agendador,
     auditoria,
@@ -92,6 +97,10 @@ from app.services import (
 )
 from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
+from app.services.visualizar_token import (
+    _carregar_visualizar_token,
+    _gerar_visualizar_token,
+)
 from app.services.snapshot_service import (
     classificar_status_certidao as _classificar_status_certidao,
     garantir_snapshot_diario as _garantir_snapshot_diario,
@@ -138,23 +147,6 @@ def _after_request_observability(response):
 
 def _current_app_object():
     return current_app._get_current_object()
-
-
-def _json_error(message=None, code=400, exc=None, **extra):
-    info = descrever_erro(exc) if exc is not None else None
-    texto = message or (mensagem_usuario(exc) if exc is not None else 'Erro inesperado.')
-    payload = {
-        'status': 'error',
-        'message': texto,
-        'mensagem': texto,
-        'codigo': code,
-        'request_id': CorrelationContext.get_request_id(),
-    }
-    if info is not None:
-        payload.setdefault('error_type', info.tipo.value)
-        payload.setdefault('acao', info.acao)
-    payload.update(extra)
-    return jsonify(payload), code
 
 
 def _calc_fgts_targets_by_scope(start_certidao_id, scope='default'):
@@ -743,23 +735,6 @@ def fgts_emitir_unico():
         'data_formatada': data_formatada,
         'nova_classe': _fgts_status_por_data(certidao.data_validade if certidao else None)
     })
-
-
-def _get_visualizar_serializer():
-    secret = current_app.config.get('SECRET_KEY') or 'certidoes-secret'
-    return URLSafeTimedSerializer(secret, salt='visualizar-certidao')
-
-
-def _gerar_visualizar_token(certidao_id):
-    return _get_visualizar_serializer().dumps({'cid': certidao_id})
-
-
-def _carregar_visualizar_token(token, max_age=60 * 60 * 24):
-    try:
-        data = _get_visualizar_serializer().loads(token, max_age=max_age)
-    except (BadSignature, SignatureExpired):
-        return None
-    return data.get('cid') if isinstance(data, dict) else None
 
 
 @bp.app_template_global()

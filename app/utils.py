@@ -2,7 +2,7 @@
 import os
 from datetime import datetime, timezone
 
-from flask import current_app
+from flask import current_app, jsonify
 
 
 def utcnow_naive():
@@ -46,6 +46,32 @@ def normalizar_cidade(valor):
         return ''
     from app.file_manager import remover_acentos
     return remover_acentos(texto).upper()
+
+
+def json_error(message=None, code=400, exc=None, **extra):
+    """Envelope JSON de erro padrao das rotas assincronas.
+
+    Fonte unica compartilhada pelas rotas (blueprint `main`) e pela camada de
+    servico (ex.: `emissao_service`). Imports de `app.errors`/`correlation` sao
+    lazy para manter `utils` como modulo base sem acoplar seu tempo de import.
+    """
+    from app.errors import descrever_erro, mensagem_usuario
+    from app.services.correlation import CorrelationContext
+
+    info = descrever_erro(exc) if exc is not None else None
+    texto = message or (mensagem_usuario(exc) if exc is not None else 'Erro inesperado.')
+    payload = {
+        'status': 'error',
+        'message': texto,
+        'mensagem': texto,
+        'codigo': code,
+        'request_id': CorrelationContext.get_request_id(),
+    }
+    if info is not None:
+        payload.setdefault('error_type', info.tipo.value)
+        payload.setdefault('acao', info.acao)
+    payload.update(extra)
+    return jsonify(payload), code
 
 
 def mtime_para_datetime_local(caminho):
