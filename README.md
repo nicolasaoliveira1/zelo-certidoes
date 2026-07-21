@@ -329,14 +329,19 @@ Portais **IPM Atende.Net** (URL `*.atende.net`, como Gravataí/Osório/Novo Hamb
   instance/
 app/
   __init__.py              # Inicialização Flask (factory create_app)
-  routes.py                # Rotas e fluxos de negócio (blueprint 'main')
+  routes/                  # Pacote de rotas por domínio, todas no blueprint 'main' (spec 05)
+    __init__.py            #   core: bp, hooks, dashboard, /api/pendencias, /health, /diagnostico*
+    empresas.py            #   rotas de empresa (listagem/detalhe/editar/remover/nova/adicionar)
+    certidoes.py           #   rotas /certidao/* (baixar fina delega a emissao_service)
+    lotes.py               #   factory _register_batch_routes + fluxos do agendador
+    relatorios.py          #   /relatorios, /configuracoes, exportação (carteira/dossiê/produtividade)
   auth.py                  # Login/papéis (deny-by-default, requer_papel) + painéis admin
   cli.py                   # Comandos CLI (criar-admin / criar-usuario)
   models.py                # Modelos do banco
   captcha_solver.py        # Integração 2captcha (ALTCHA e captcha de imagem)
   file_manager.py          # Detecção/movimentação de PDFs
   errors.py                # Taxonomia de erros + descrever_erro (mensagens acionáveis)
-  utils.py                 # Utilitários compartilhados (to_bool, get_config_value, normalizar_cidade)
+  utils.py                 # Utilitários compartilhados (to_bool, get_config_value, normalizar_cidade, json_error)
   automation/              # Pacote de automação (antes automation.py)
     __init__.py            #   reexporta SITES_CERTIDOES, VALIDADES_CERTIDOES
     sites.py               #   URLs, seletores e validades padrão
@@ -367,9 +372,14 @@ app/
     carteira_filtros.py    # Recorte da carteira replicado server-side (spec 04)
     export_service.py      # Planilhas XLSX (carteira e produtividade) (spec 04)
     dossie_service.py      # Dossiê PDF por empresa (capa fpdf2 + merge pypdf) (spec 04)
+    emissao_service.py     # Orquestração da emissão individual "baixar" (spec 05)
+    visualizar_token.py    # Tokens assinados de visualização de certidão (spec 05)
   static/
     css/
     images/
+    js/                    # JS do dashboard extraído do HTML (spec 05)
+      dashboard.js         #   entry ES module (<script type=module>, versionado)
+      toasts.js            #   sistema de toasts (importado por dashboard.js)
   templates/
     base.html
     dashboard.html
