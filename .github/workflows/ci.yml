@@ -69,3 +69,20 @@ jobs:
           TEST_DATABASE_URL: mysql+pymysql://root:root@127.0.0.1:3306/sistema_certidoes_test?charset=utf8mb4
           AUTO_DB_UPGRADE: '0'
         run: pytest -q
+
+      # Migracao idempotente contra MySQL real: exercita batch_alter_table/enum num
+      # banco dedicado. AUTO_DB_UPGRADE=0 para a CLI controlar o estado (o boot nao
+      # compete). downgrade "-- -1" reverte exatamente a migration head (robusto a
+      # novas migrations). O passo falha o job se qualquer comando falhar (set -e).
+      - name: Migração idempotente (upgrade → downgrade → upgrade)
+        env:
+          FLASK_APP: run.py
+          AUTO_DB_UPGRADE: '0'
+          SECRET_KEY: ci-mig
+          DATABASE_URL: mysql+pymysql://root:root@127.0.0.1:3306/sistema_certidoes_mig?charset=utf8mb4
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot -e "CREATE DATABASE IF NOT EXISTS sistema_certidoes_mig CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;"
+          flask db upgrade head
+          flask db downgrade -- -1
+          flask db upgrade head
+          flask db current | grep -q '(head)'
