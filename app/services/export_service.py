@@ -116,12 +116,23 @@ def coletar_produtividade(dias=30):
 
     por_dia = {}
     por_tipo = {}
+    # manual vs agendador: mede quanto da operacao ja e automatica (spec 07,
+    # COV-04). Nao altera os totais — e um recorte adicional dos mesmos lotes.
+    por_origem = {
+        'manual': {'lotes': 0, 'emissoes': 0},
+        'agendador': {'lotes': 0, 'emissoes': 0},
+    }
     duracoes = []
     total_emissoes = 0
     for lote in lotes:
         dia = lote.iniciado_em.date()
         por_dia[dia] = por_dia.get(dia, 0) + (lote.sucesso or 0)
         total_emissoes += (lote.sucesso or 0)
+
+        # 'manual' cobre registros anteriores a coluna origem (backfill do default).
+        origem = lote.origem if lote.origem in por_origem else 'manual'
+        por_origem[origem]['lotes'] += 1
+        por_origem[origem]['emissoes'] += (lote.sucesso or 0)
 
         agg = por_tipo.setdefault(
             lote.tipo, {'tipo': lote.tipo, 'lotes': 0, 'sucesso': 0, 'falhas': 0, 'duracoes': []})
@@ -156,6 +167,7 @@ def coletar_produtividade(dias=30):
         'total_emissoes': total_emissoes,
         'tempo_medio_min': _media(duracoes),
         'por_tipo': tipos,
+        'por_origem': por_origem,
         'emissoes_por_dia': emissoes_por_dia,
     }
 
