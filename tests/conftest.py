@@ -27,9 +27,18 @@ os.environ.setdefault('CAPTCHA_2_API_KEY', '')
 # CSRF e provada num teste dedicado que religa a flag (tests/test_csrf.py).
 os.environ.setdefault('WTF_CSRF_ENABLED', 'false')
 
-_fd, _DBPATH = tempfile.mkstemp(suffix='.db')
-os.close(_fd)
-os.environ['DATABASE_URL'] = 'sqlite:///' + _DBPATH.replace(os.sep, '/')
+# Opt-in de banco de teste: se TEST_DATABASE_URL estiver setado (ex.: o job de CI
+# aponta para um MySQL de servico), a suite roda contra ele — e como o schema de
+# cada teste e construido por db.create_all()/drop_all(), isso exercita enum
+# nativo/colacao/DateTime no banco real (paridade com producao, spec 06). Sem a
+# variavel, mantem o SQLite temporario de sempre (rapido, gate local).
+_TEST_DB_URL = os.environ.get('TEST_DATABASE_URL')
+if _TEST_DB_URL:
+    os.environ['DATABASE_URL'] = _TEST_DB_URL
+else:
+    _fd, _DBPATH = tempfile.mkstemp(suffix='.db')
+    os.close(_fd)
+    os.environ['DATABASE_URL'] = 'sqlite:///' + _DBPATH.replace(os.sep, '/')
 
 # Diretorio existente para que o preflight (rede/Chrome) passe de forma
 # deterministica nos testes, independente da maquina/CI.

@@ -253,6 +253,19 @@ Acesso local: http://localhost:5000 (faça login com o admin criado acima)
 
 > **Atalho no Windows:** dê um duplo clique em `iniciar.bat` na pasta do projeto. Ele ativa o `venv`, garante as dependências (`pip install -r requirements.txt`, idempotente) e sobe o app. Se faltar alguma dependência crítica (ex.: `undetected-chromedriver`), o `run.py` aborta o boot com uma mensagem clara em vez de subir quebrado.
 
+### Rodar com Docker (dev/reprodutibilidade)
+
+Ambiente de desenvolvimento reprodutível com **app + MySQL** em um comando, independente do Windows/`iniciar.bat`. A automação Selenium/Chrome **não** roda no container (fica no host, com certificado e unidade de rede `Z:`); o compose serve a UI e os dados sobre um MySQL igual ao de produção (8.0, `utf8mb4`/`utf8mb4_0900_ai_ci`).
+
+```bash
+cp .env.docker.example .env.docker   # ajuste SECRET_KEY / senha de dev (sem segredo real versionado)
+docker compose --env-file .env.docker up
+```
+
+- `db`: MySQL 8.0 com volume nomeado `mysql_data` (dados persistem entre `up`/`down`).
+- `web`: build do `Dockerfile` (`python:3.12-slim`); o schema é criado pelas **migrations** no boot (`AUTO_DB_UPGRADE=1`), não por `create_all`. App em http://localhost:5000.
+- O `.env.docker` real é ignorado pelo git; só o `.env.docker.example` é versionado.
+
 ## Como usar
 
 1. Faça login com um usuário existente (o primeiro admin é criado por `flask criar-admin`). Sem sessão, todas as páginas redirecionam para o login.
@@ -396,6 +409,14 @@ app/
     auditoria.html           # Painel de auditoria, admin (spec 01)
     403.html                 # Acesso negado (spec 01)
 ```
+
+## Testes e CI
+
+- Suíte `pytest` (`pip install -r requirements-dev.txt` + `pytest -q`).
+- **CI com paridade de banco** (GitHub Actions, dois jobs em paralelo):
+  - `testes-sqlite` — lint (`ruff`) + suíte em SQLite (gate rápido).
+  - `testes-mysql` — suíte inteira contra **MySQL 8.0** (service container, `utf8mb4`/`utf8mb4_0900_ai_ci`) para pegar divergência de enum nativo/colação/tipo antes de produção, mais um teste de **migração idempotente** (`upgrade → downgrade → upgrade`).
+- Localmente, aponte a suíte para outro banco com `TEST_DATABASE_URL` (sem a variável, usa SQLite).
 
 ## Limitações atuais
 

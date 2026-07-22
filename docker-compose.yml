@@ -1,0 +1,47 @@
+# Ambiente de DEV reprodutivel (spec 06): app + MySQL com um comando.
+#   cp .env.docker.example .env.docker && docker compose --env-file .env.docker up
+# A automacao Selenium/Chrome NAO roda aqui (fica no host Windows); este compose
+# serve a UI + dados para desenvolvimento contra um MySQL igual ao de producao.
+services:
+  db:
+    image: mysql:8.0
+    # Charset/colacao explicitos = paridade com producao (verificado: 8.0.44,
+    # utf8mb4 / utf8mb4_0900_ai_ci). O 8.0 ja usa esse default; explicitar evita surpresa.
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci
+    environment:
+      # Defaults de dev inline: 'docker compose up' funciona sem --env-file.
+      # O .env.docker (se usado) sobrescreve estes valores.
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-dev_root_pwd}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-sistema_certidoes}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "3306:3306"
+
+  web:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-dev_secret_troque}
+      # host interno 'db' (nome do servico); charset utf8mb4 na URL. Os mesmos
+      # defaults do servico db para a URL bater sem --env-file.
+      DATABASE_URL: mysql+pymysql://root:${MYSQL_ROOT_PASSWORD:-dev_root_pwd}@db/${MYSQL_DATABASE:-sistema_certidoes}?charset=utf8mb4
+      # schema criado pelas MIGRATIONS no boot (AUTO_DB_UPGRADE), nao por create_all.
+      AUTO_DB_UPGRADE: "1"
+      # sem agendador/automacao no container de dev (Selenium fica no host).
+      AGENDADOR_ENABLED: "false"
+    volumes:
+      # codigo montado por cima para iteracao rapida sem rebuild.
+      - .:/app
+    ports:
+      - "5000:5000"
+
+volumes:
+  mysql_data:

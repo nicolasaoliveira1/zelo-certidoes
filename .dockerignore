@@ -1,0 +1,36 @@
+# Nao copiar para a imagem: ambientes locais, segredos, artefatos e caches.
+.git
+.gitignore
+.venv
+venv
+env
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# Segredos e config local (nunca versionar/copiar)
+.env
+.env.*
+!.env.docker.example
+
+# Perfil do Chrome (automacao roda no host, nao no container)
+chrome-profile
+
+# Artefatos de runtime
+logs
+instance
+*.db
+*.sqlite
+
+# Documentacao/planejamento interno
+.specs
+
+# Editor/OS
+.idea
+.vscode
+.DS_Store
+Thumbs.db

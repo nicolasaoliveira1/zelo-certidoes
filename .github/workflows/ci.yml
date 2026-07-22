@@ -5,7 +5,8 @@ on:
   pull_request:
 
 jobs:
-  validar:
+  # Gate rapido: lint + suite em SQLite (comportamento historico do CI).
+  testes-sqlite:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
@@ -24,5 +25,64 @@ jobs:
       - name: Lint (ruff)
         run: ruff check .
 
-      - name: Testes (pytest)
+      - name: Testes (pytest, SQLite)
         run: pytest -q
+
+  # Paridade com producao (MySQL 8.0, utf8mb4/utf8mb4_0900_ai_ci): roda a suite
+  # inteira contra um MySQL real para pegar divergencia de enum nativo/colacao/
+  # DateTime antes de chegar a producao (spec 06). Roda em paralelo ao SQLite.
+  testes-mysql:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: sistema_certidoes_test
+        ports:
+          - 3306:3306
+        # MySQL 8.0 ja usa utf8mb4 / utf8mb4_0900_ai_ci por padrao (igual producao).
+        # Healthcheck evita corrida de boot antes de rodar os testes.
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Instalar dependências
+        run: pip install -r requirements-dev.txt
+
+      - name: Testes (pytest, MySQL 8.0)
+        env:
+          # conftest respeita TEST_DATABASE_URL (spec 06); schema por create_all
+          # exercita enum/colacao/DateTime no MySQL real. Sem mascaramento.
+          TEST_DATABASE_URL: mysql+pymysql://root:root@127.0.0.1:3306/sistema_certidoes_test?charset=utf8mb4
+          AUTO_DB_UPGRADE: '0'
+        run: pytest -q
+
+      # Migracao idempotente contra MySQL real: exercita batch_alter_table/enum num
+      # banco dedicado. AUTO_DB_UPGRADE=0 para a CLI controlar o estado (o boot nao
+      # compete). downgrade "-- -1" reverte exatamente a migration head (robusto a
+      # novas migrations). O passo falha o job se qualquer comando falhar (set -e).
+      - name: Migração idempotente (upgrade → downgrade → upgrade)
+        env:
+          FLASK_APP: run.py
+          AUTO_DB_UPGRADE: '0'
+          SECRET_KEY: ci-mig
+          DATABASE_URL: mysql+pymysql://root:root@127.0.0.1:3306/sistema_certidoes_mig?charset=utf8mb4
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot -e "CREATE DATABASE IF NOT EXISTS sistema_certidoes_mig CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;"
+          flask db upgrade head
+          flask db downgrade -- -1
+          flask db upgrade head
+          flask db current | grep -q '(head)'
