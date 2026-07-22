@@ -15,9 +15,10 @@ from app.services import export_service
 from app.utils import utcnow_naive
 
 
-def _lote(tipo, *, sucesso=0, falhas=0, dias_atras=1, duracao_min=None):
+def _lote(tipo, *, sucesso=0, falhas=0, dias_atras=1, duracao_min=None, origem='manual'):
     iniciado = utcnow_naive() - timedelta(days=dias_atras)
-    lote = ExecucaoLote(tipo=tipo, iniciado_em=iniciado, sucesso=sucesso, falhas=falhas)
+    lote = ExecucaoLote(tipo=tipo, iniciado_em=iniciado, sucesso=sucesso,
+                        falhas=falhas, origem=origem)
     if duracao_min is not None:
         lote.finalizado_em = iniciado + timedelta(minutes=duracao_min)
     return lote
@@ -109,3 +110,62 @@ def test_planilha_produtividade_abre_valida(app, lotes):
         textos = [ws.cell(row=r, column=1).value for r in range(1, ws.max_row + 1)]
         assert 'Por tipo' in textos
         assert 'Emissões por dia' in textos
+
+
+def test_segmenta_por_origem_sem_alterar_totais(app):
+    """COV-04: manual vs agendador é um recorte adicional — os totais somam os dois
+    e nenhum lote fica de fora."""
+    with app.app_context():
+        db.create_all()
+        try:
+            db.session.add_all([
+                _lote('FGTS', sucesso=5, falhas=1, dias_atras=1, origem='manual'),
+                _lote('FGTS', sucesso=3, falhas=0, dias_atras=2, origem='agendador'),
+                _lote('Estadual RS', sucesso=4, falhas=0, dias_atras=1, origem='agendador'),
+            ])
+            db.session.commit()
+            dados = export_service.coletar_produtividade(dias=30)
+
+            assert dados['por_origem']['manual'] == {'lotes': 1, 'emissoes': 5}
+            assert dados['por_origem']['agendador'] == {'lotes': 2, 'emissoes': 7}
+            # o recorte por origem soma exatamente os totais gerais (nada escondido)
+            somou_lotes = (dados['por_origem']['manual']['lotes']
+                           + dados['por_origem']['agendador']['lotes'])
+            somou_emissoes = (dados['por_origem']['manual']['emissoes']
+                              + dados['por_origem']['agendador']['emissoes'])
+            assert somou_lotes == dados['total_lotes'] == 3
+            assert somou_emissoes == dados['total_emissoes'] == 12
+        finally:
+            db.drop_all()
+
+
+def test_origem_default_manual_para_registros_antigos(app):
+    """Lote gravado sem origem (registro anterior à coluna) conta como manual."""
+    with app.app_context():
+        db.create_all()
+        try:
+            lote = ExecucaoLote(tipo='FGTS', iniciado_em=utcnow_naive(), sucesso=2)
+            db.session.add(lote)
+            db.session.commit()
+            assert lote.origem == 'manual'  # default do modelo
+            dados = export_service.coletar_produtividade(dias=30)
+            assert dados['por_origem']['manual'] == {'lotes': 1, 'emissoes': 2}
+            assert dados['por_origem']['agendador'] == {'lotes': 0, 'emissoes': 0}
+        finally:
+            db.drop_all()
+
+
+def test_registrar_execucao_lote_carimba_origem(app):
+    """COV-04: o helper de registro (usado pela rota manual e pelo agendador)
+    grava a origem. Default 'manual' (rota); 'agendador' quando o job passa."""
+    from app.routes.lotes import _registrar_execucao_lote
+    with app.app_context():
+        db.create_all()
+        try:
+            _registrar_execucao_lote('FGTS', 'default', 3, 'exec-manual')
+            _registrar_execucao_lote('FGTS', 'default', 2, 'exec-sched',
+                                     origem='agendador')
+            origens = {e.execution_id: e.origem for e in ExecucaoLote.query.all()}
+            assert origens == {'exec-manual': 'manual', 'exec-sched': 'agendador'}
+        finally:
+            db.drop_all()

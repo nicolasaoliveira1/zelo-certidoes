@@ -98,7 +98,35 @@
         </div>
     </div>
     <div class="col-12 col-lg-5">
-        <div class="card border-0 shadow-sm h-100">
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-body-tertiary border-bottom"><strong>Origem dos lotes</strong></div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th>Origem</th>
+                                <th class="text-end">Lotes</th>
+                                <th class="text-end">Emissões</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Manual (operador)</td>
+                                <td class="text-end">{{ dados.por_origem.manual.lotes }}</td>
+                                <td class="text-end">{{ dados.por_origem.manual.emissoes }}</td>
+                            </tr>
+                            <tr>
+                                <td>Automático (agendador)</td>
+                                <td class="text-end">{{ dados.por_origem.agendador.lotes }}</td>
+                                <td class="text-end">{{ dados.por_origem.agendador.emissoes }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="card border-0 shadow-sm">
             <div class="card-header bg-body-tertiary border-bottom"><strong>Emissões por dia</strong></div>
             <div class="card-body p-0">
                 {% if dados.emissoes_por_dia %}

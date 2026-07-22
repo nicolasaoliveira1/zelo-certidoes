@@ -284,8 +284,10 @@ def _rotulo_execucao_municipal(certidao_id):
     return 'Municipal'
 
 
-def _registrar_execucao_lote(nome_lote, scope, total, execution_id):
+def _registrar_execucao_lote(nome_lote, scope, total, execution_id, origem='manual'):
     """Grava (persistente) o início de um lote para o relatório "último lote".
+    `origem` distingue lote manual (rota HTTP) de agendado (emissão proativa) sem
+    esconder nenhum dos relatórios (spec 07, COV-04).
     Best-effort: uma falha ao gravar nunca deve impedir o lote de iniciar."""
     try:
         db.session.add(ExecucaoLote(
@@ -294,6 +296,7 @@ def _registrar_execucao_lote(nome_lote, scope, total, execution_id):
             total=total or 0,
             iniciado_em=utcnow_naive(),
             execution_id=execution_id,
+            origem=origem,
         ))
         db.session.commit()
     except Exception as e:
@@ -463,7 +466,8 @@ def _rodar_lote_agendado(app, ids, *, wrap_emit, execution_id, lock, state,
         batch_engine.reset_batch_state(state)
         state.update(status='running', ids=list(ids), total=len(ids),
                      started_at=utcnow_naive(), execution_id=execution_id)
-    _registrar_execucao_lote(nome_lote, 'default', len(ids), execution_id)
+    _registrar_execucao_lote(nome_lote, 'default', len(ids), execution_id,
+                             origem='agendador')
     # Caminho do agendador: tolerante a grave por-item (RESIL-01). Um grave
     # "comum" (ex.: timeout de download) NAO aborta o lote — vira falha por-item
     # (fila TarefaEmissao / retry) e o loop segue. GRAVE_FATAL (driver morto)

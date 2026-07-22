@@ -184,6 +184,11 @@ class ExecucaoLote(db.Model):
     tipo = db.Column(db.String(30), nullable=False, index=True)
     # escopo do lote: 'pendentes' (reprocessa positivas) | 'default' (vencidas/a vencer)
     escopo = db.Column(db.String(20), nullable=False, default='default')
+    # quem disparou o lote: 'manual' (rota HTTP / operador) | 'agendador' (emissao
+    # proativa, spec 02). Permite medir quanto da operacao ja e automatica sem
+    # esconder nenhum lote dos relatorios (spec 07, COV-04). Registros anteriores a
+    # esta coluna ficam 'manual' (backfill do default na migration).
+    origem = db.Column(db.String(12), nullable=False, default='manual', index=True)
     total = db.Column(db.Integer, nullable=False, default=0)
     iniciado_em = db.Column(
         db.DateTime, nullable=False, default=utcnow_naive, index=True)
