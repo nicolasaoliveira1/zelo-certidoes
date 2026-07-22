@@ -18,6 +18,8 @@ instance/
 .env
 .env.*
 !.env.example
+# Exemplo do compose e versionado; o .env.docker real continua ignorado por .env.*
+!.env.docker.example
 
 # Perfil dedicado do Chrome / dados locais da automação
 chrome-profile/
