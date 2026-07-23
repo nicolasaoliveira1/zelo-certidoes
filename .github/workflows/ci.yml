@@ -33,16 +33,11 @@ jobs:
 
   # Paridade com producao (MySQL 8.0, utf8mb4/utf8mb4_0900_ai_ci): roda a suite
   # inteira contra um MySQL real para pegar divergencia de enum nativo/colacao/
-  # DateTime antes de chegar a producao (spec 06).
-  #
-  # Roda so em PR e dispatch manual (NAO em todo push): a suite atual, com
-  # create_all/drop_all por teste, trava num MySQL real (metadata lock — no
-  # SQLite nao acontece). Ate a isolacao dos testes ser corrigida, este job fica
-  # fora do caminho de push para nao re-queimar CI; o timeout-minutes + o
-  # --timeout por teste garantem que um hang falha em minutos (nunca mais 6h) e
-  # nomeia o teste culpado. Sem mascaramento: o job segue obrigatorio no PR.
+  # DateTime antes de chegar a producao (spec 06). Roda em push/PR, em paralelo
+  # ao SQLite. Rede de seguranca: timeout-minutes (nunca mais 6h de hang) + o
+  # --timeout por teste (transforma hang em falha nomeada). A isolacao de sessao
+  # dos testes (db.session.remove antes de drop_all) evita o metadata-lock hang.
   testes-mysql:
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:

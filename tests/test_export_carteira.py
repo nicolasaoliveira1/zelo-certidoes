@@ -43,6 +43,7 @@ def carteira(app):
         db.session.add_all([a, b])
         db.session.commit()
         yield
+        db.session.remove()
         db.drop_all()
 
 

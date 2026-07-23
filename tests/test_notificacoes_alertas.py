@@ -24,6 +24,7 @@ def ctx(app):
                           CAPTCHA_2_SALDO_MINIMO=2.0, NOTIF_ALERTA_JANELA_HORAS=24)
         yield app
         db.session.rollback()
+        db.session.remove()
         db.drop_all()
 
 
