@@ -4,7 +4,7 @@ Deriva da AC P1-1 do spec: "WHEN uma Certidao e criada ou tem qualquer campo
 alterado e persistido THEN o sistema SHALL gravar/atualizar seu timestamp de
 ultima atualizacao automaticamente".
 """
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import sqlalchemy as sa
 
@@ -30,11 +30,12 @@ def test_atualizado_em_preenchido_na_criacao(app, ids):
         db.session.commit()
         depois = datetime.now()
         assert cert.atualizado_em is not None
-        # carimbo em hora local, dentro da janela do teste. O DATETIME do MySQL
-        # trunca microssegundos (SQLite guarda o datetime cheio), entao o carimbo
-        # pode cair ate ~1s "antes" de `antes`; comparar com o piso de segundo de
-        # `antes` vale nos dois bancos (precisao de segundo basta para ordenar).
-        assert antes.replace(microsecond=0) <= cert.atualizado_em <= depois
+        # carimbo em hora local, dentro da janela do teste com folga de 1s. O
+        # DATETIME do MySQL (sem casas fracionarias) ARREDONDA para o segundo mais
+        # proximo — pode cair ate ~0,5s antes de `antes` ou depois de `depois`; o
+        # SQLite guarda o datetime cheio. A folga de 1s vale nos dois bancos e
+        # ainda prova que o carimbo foi gravado na criacao (precisao de segundo).
+        assert antes - timedelta(seconds=1) <= cert.atualizado_em <= depois + timedelta(seconds=1)
 
 
 def test_atualizado_em_avanca_no_update(app, ids):
