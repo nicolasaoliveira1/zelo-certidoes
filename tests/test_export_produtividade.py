@@ -39,6 +39,7 @@ def lotes(app):
         ])
         db.session.commit()
         yield
+        db.session.remove()
         db.drop_all()
 
 
@@ -53,6 +54,7 @@ def test_periodo_vazio_zera_tudo(app):
             assert dados['por_tipo'] == []
             assert dados['emissoes_por_dia'] == []
         finally:
+            db.session.remove()
             db.drop_all()
 
 
@@ -136,6 +138,7 @@ def test_segmenta_por_origem_sem_alterar_totais(app):
             assert somou_lotes == dados['total_lotes'] == 3
             assert somou_emissoes == dados['total_emissoes'] == 12
         finally:
+            db.session.remove()
             db.drop_all()
 
 
@@ -152,6 +155,7 @@ def test_origem_default_manual_para_registros_antigos(app):
             assert dados['por_origem']['manual'] == {'lotes': 1, 'emissoes': 2}
             assert dados['por_origem']['agendador'] == {'lotes': 0, 'emissoes': 0}
         finally:
+            db.session.remove()
             db.drop_all()
 
 
@@ -168,4 +172,5 @@ def test_registrar_execucao_lote_carimba_origem(app):
             origens = {e.execution_id: e.origem for e in ExecucaoLote.query.all()}
             assert origens == {'exec-manual': 'manual', 'exec-sched': 'agendador'}
         finally:
+            db.session.remove()
             db.drop_all()

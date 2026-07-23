@@ -45,6 +45,7 @@ def ctx(app):
         db.create_all()
         yield app
         db.session.rollback()
+        db.session.remove()
         db.drop_all()
 
 

@@ -59,6 +59,7 @@ def empresa_mista(app, tmp_path):
         db.session.add(emp)
         db.session.commit()
         yield emp.id
+        db.session.remove()
         db.drop_all()
 
 
@@ -124,6 +125,7 @@ def test_empresa_sem_validas_retorna_none(app):
             assert buffer is None
             assert any('sem certid' in a.lower() for a in avisos)
         finally:
+            db.session.remove()
             db.drop_all()
 
 
@@ -143,4 +145,5 @@ def test_todas_corrompidas_retorna_none(app, tmp_path):
             assert buffer is None
             assert avisos  # ao menos o aviso do PDF ignorado
         finally:
+            db.session.remove()
             db.drop_all()
