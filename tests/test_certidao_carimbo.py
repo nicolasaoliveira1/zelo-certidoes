@@ -30,8 +30,11 @@ def test_atualizado_em_preenchido_na_criacao(app, ids):
         db.session.commit()
         depois = datetime.now()
         assert cert.atualizado_em is not None
-        # carimbo em hora local, dentro da janela do teste
-        assert antes <= cert.atualizado_em <= depois
+        # carimbo em hora local, dentro da janela do teste. O DATETIME do MySQL
+        # trunca microssegundos (SQLite guarda o datetime cheio), entao o carimbo
+        # pode cair ate ~1s "antes" de `antes`; comparar com o piso de segundo de
+        # `antes` vale nos dois bancos (precisao de segundo basta para ordenar).
+        assert antes.replace(microsecond=0) <= cert.atualizado_em <= depois
 
 
 def test_atualizado_em_avanca_no_update(app, ids):
