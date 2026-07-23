@@ -873,6 +873,26 @@ window.showToast = showToast;
                 }
             });
 
+            // BOTAO DOSSIE (download direto): o <a> baixa o PDF instantaneamente, sem evento
+            // de conclusao. Damos um spinner de duracao minima perceptivel (~900ms) so como
+            // reconhecimento do clique e trava anti-clique-duplo; a confirmacao real e o
+            // proprio arquivo na barra de downloads (sem toast "Gerando", que ficaria mentindo).
+            document.addEventListener('click', function (event) {
+                const dossieBtn = event.target.closest('.btn-dossie');
+                if (!dossieBtn || dossieBtn.classList.contains('is-loading')) return;
+
+                const originalHTML = dossieBtn.innerHTML;
+                dossieBtn.classList.add('is-loading', 'disabled');
+                dossieBtn.setAttribute('aria-disabled', 'true');
+                dossieBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Gerando…';
+
+                setTimeout(function () {
+                    dossieBtn.innerHTML = originalHTML;
+                    dossieBtn.classList.remove('is-loading', 'disabled');
+                    dossieBtn.removeAttribute('aria-disabled');
+                }, 900);
+            });
+
             // BOTAO BAIXAR (AUTOMAÇÃO)
             const btnsBaixar = document.querySelectorAll('.btn-baixar-certidao');
             btnsBaixar.forEach(function (btn) {
