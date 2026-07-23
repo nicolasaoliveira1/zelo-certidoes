@@ -1,5 +1,9 @@
 import { showToast } from './toasts.js';
 
+// Expoe o toast para scripts nao-modulo (ex.: handler .btn-abrir-pasta no base.html),
+// que ate entao caiam no alert() nativo por window.showToast estar indefinido.
+window.showToast = showToast;
+
         document.addEventListener('DOMContentLoaded', function () {
 
 

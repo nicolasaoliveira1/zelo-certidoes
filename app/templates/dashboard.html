@@ -592,6 +592,13 @@
             background-color: var(--bs-primary);
         }
 
+        /* No escuro, --bs-primary inverte para cinza claro; o texto branco fixo do
+           .stk-toast some. Usa texto escuro (mesmo token da acao primaria no dark). */
+        [data-bs-theme="dark"] .toast-stack .stk-toast.bg-primary,
+        [data-bs-theme="dark"] .toast-stack .stk-toast.bg-primary .stk-close {
+            color: var(--zelo-action-fg);
+        }
+
         .toast-stack .stk-body {
             padding: .85rem 2.3rem .85rem 1rem;
             font-size: 1rem;

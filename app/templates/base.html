@@ -287,16 +287,23 @@
             if (!btn) return;
             const id = btn.dataset.empresaId;
             if (!id) return;
-            const notify = window.showToast || function (m) { alert(m); };
+            const toast = window.showToast;   // presente onde o toasts.js modulo carrega (ex.: dashboard)
             btn.disabled = true;
             try {
                 const resp = await fetch(`/empresa/${id}/abrir-pasta`, { method: 'POST' });
                 const data = await resp.json().catch(() => ({}));
                 if (!resp.ok) {
-                    notify(data.message || data.mensagem || 'Não foi possível abrir a pasta.', 'error');
+                    // Erro e alto sinal: usa toast se houver, senao alert (pagina sem toast).
+                    const msg = data.message || data.mensagem || 'Não foi possível abrir a pasta.';
+                    if (toast) { toast(msg, 'error'); } else { alert(msg); }
+                } else if (toast) {
+                    // Sucesso e baixo sinal: a pasta abre no Explorer (outra janela) e o toast
+                    // confirma a acao. Sem toast, fica silencioso — nada de alert nativo.
+                    toast(data.message || data.mensagem || 'Abrindo pasta…', 'success');
                 }
             } catch (err) {
-                notify('Erro ao abrir a pasta.', 'error');
+                const msg = 'Erro ao abrir a pasta.';
+                if (toast) { toast(msg, 'error'); } else { alert(msg); }
             } finally {
                 btn.disabled = false;
             }
