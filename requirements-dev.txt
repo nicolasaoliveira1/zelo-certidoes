@@ -2,3 +2,6 @@
 -r requirements.txt
 pytest==9.0.3
 ruff==0.15.16
+# Timeout por teste: converte um hang (ex.: metadata lock do MySQL) em falha
+# nomeada em vez de pendurar o CI ate o teto de 6h (spec 06 / job testes-mysql).
+pytest-timeout==2.3.1
