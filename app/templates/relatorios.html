@@ -583,10 +583,15 @@
         }
         const stepX = Math.max(1, Math.ceil(n / 8));
         labels.forEach((lb, i) => {
-            if (i % stepX === 0 || i === n - 1) {
+            const ehUltimo = i === n - 1;
+            // último rótulo sempre entra; os regulares (múltiplos de stepX) só se
+            // estiverem a pelo menos stepX colunas do último — senão os textos
+            // se sobrepõem quando o último múltiplo cai vizinho ao índice final
+            const regular = i % stepX === 0 && (n - 1 - i) >= stepX;
+            if (regular || ehUltimo) {
                 // primeiro rótulo ancora à esquerda, último à direita — assim
                 // nenhum extrapola a borda do SVG e é cortado
-                const anchor = i === 0 ? 'start' : (i === n - 1 ? 'end' : 'middle');
+                const anchor = i === 0 ? 'start' : (ehUltimo ? 'end' : 'middle');
                 svg += '<text x="' + xAt(i) + '" y="' + (H - 8) + '" class="chart-xlabel" text-anchor="' + anchor + '">' + esc(lb) + '</text>';
             }
         });
