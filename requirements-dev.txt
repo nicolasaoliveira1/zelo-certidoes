@@ -5,3 +5,6 @@ ruff==0.15.16
 # Timeout por teste: converte um hang (ex.: metadata lock do MySQL) em falha
 # nomeada em vez de pendurar o CI ate o teto de 6h (spec 06 / job testes-mysql).
 pytest-timeout==2.3.1
+# Emite a falha de teste como annotation do GitHub Actions (file:line + mensagem),
+# legivel pela API — util para diagnosticar falha que so acontece no CI.
+pytest-github-actions-annotate-failures==0.3.0
