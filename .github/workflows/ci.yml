@@ -69,6 +69,20 @@ jobs:
       - name: Instalar dependências
         run: pip install -r requirements-dev.txt
 
+      # A imagem oficial do MySQL sobe um servidor temporario, roda o init (cria o
+      # MYSQL_DATABASE) e REINICIA; o healthcheck ping pode reportar "saudavel" no
+      # servidor temporario, e as primeiras conexoes caem no meio do restart (flaky).
+      # Espera o servidor FINAL aceitar uma query real no banco alvo antes do pytest.
+      - name: Aguardar MySQL ficar realmente pronto
+        run: |
+          for i in $(seq 1 30); do
+            if mysql -h 127.0.0.1 -uroot -proot -e "SELECT 1" sistema_certidoes_test >/dev/null 2>&1; then
+              echo "MySQL pronto (query real no banco alvo OK)"; exit 0
+            fi
+            echo "aguardando MySQL... ($i)"; sleep 2
+          done
+          echo "MySQL nao ficou pronto a tempo"; exit 1
+
       - name: Testes (pytest, MySQL 8.0)
         env:
           # conftest respeita TEST_DATABASE_URL (spec 06); schema por create_all
