@@ -247,6 +247,7 @@ import { showToast } from './toasts.js';
 
             let urlParaAbrir = null;
             let tipoParaAbrir = null;
+            let cnpjParaAbrir = null;
             let idParaMonitorar = null;
             let fgtsBatchCertidaoId = null;
             let fgtsBatchPoller = null;
@@ -606,24 +607,18 @@ import { showToast } from './toasts.js';
                     urlParaAbrir = (btn.dataset.url || '').trim();
                     tipoParaAbrir = (btn.dataset.tipo || '').trim();
                     idParaMonitorar = (btn.dataset.id || '').trim();
-                    const cnpj = btn.dataset.cnpj;
+                    cnpjParaAbrir = btn.dataset.cnpj;
 
                     if (!urlParaAbrir || urlParaAbrir === '#' || urlParaAbrir === 'undefined' || urlParaAbrir === 'null' || urlParaAbrir === 'none') {
                         showToast('URL não cadastrada.', 'error');
                         return;
                     }
 
-                    navigator.clipboard.writeText(cnpj).then(function () {
-                        infoModalBody.innerHTML = `
-                    <p class="mb-2">O CNPJ <strong>${cnpj}</strong> foi copiado.</p>
-                    <p class="text-muted small">Pressione <strong>OK</strong> para abrir o site.</p>
+                    infoModalBody.innerHTML = `
+                    <p class="mb-2">Ao abrir o site, o CNPJ <strong>${cnpjParaAbrir}</strong> será copiado para você colar na página.</p>
+                    <p class="text-muted small">Pressione <strong>OK</strong> para abrir o site e copiar o CNPJ.</p>
                 `;
-                        if (infoModal) infoModal.show();
-                    }).catch(function (err) {
-                        console.error('Erro copiar:', err);
-                        infoModalBody.innerHTML = `<p class="text-danger">Erro ao copiar CNPJ. Copie manualmente.</p>`;
-                        if (infoModal) infoModal.show();
-                    });
+                    if (infoModal) infoModal.show();
                 });
             });
 
@@ -646,6 +641,15 @@ import { showToast } from './toasts.js';
                         return;
                     }
                     
+                    if (cnpjParaAbrir) {
+                        navigator.clipboard.writeText(cnpjParaAbrir).then(function () {
+                            showToast('CNPJ copiado para a área de transferência!', 'success');
+                        }).catch(function (err) {
+                            console.error('Erro copiar:', err);
+                            showToast('Não foi possível copiar o CNPJ. Copie manualmente.', 'error');
+                        });
+                    }
+
                     let novaAba = null;
                     if (urlParaAbrir) {
                         novaAba = window.open(urlParaAbrir, '_blank');
